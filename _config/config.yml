@@ -1,0 +1,10 @@
+---
+Name: goldfinch-imaginarium
+After:
+  - 'assetsimage'
+---
+
+SilverStripe\Assets\Image:
+  extensions:
+    - Goldfinch\Imaginarium\Extensions\ImageExtension
+    - Goldfinch\Imaginarium\Extensions\WebpExtension

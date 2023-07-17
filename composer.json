@@ -1,0 +1,25 @@
+{
+    "name": "goldfinch/imaginarium",
+    "description": "",
+    "type": "silverstripe-vendormodule",
+    "keywords": [
+        "silverstripe"
+    ],
+    "license": "MIT",
+    "authors": [{
+        "name": "Artem Karasev"
+    }],
+    "require": {
+        "php": ">=8.0",
+        "silverstripe/framework": "^5.0",
+        "silverstripe/admin": "^2.0",
+        "rosell-dk/webp-convert": "^2.9"
+    },
+    "autoload": {
+        "psr-4": {
+            "Goldfinch\\Imaginarium\\": "src/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
