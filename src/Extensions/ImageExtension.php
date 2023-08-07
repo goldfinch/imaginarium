@@ -33,6 +33,11 @@ class ImageExtension extends Extension
         return $this->Lazy($this->owner->FocusCropHeight($height));
     }
 
+    public function LazyThumb(int $width, int $height)
+    {
+        return $this->Lazy($this->owner->FocusFill($width, $height));
+    }
+
     protected function Lazy($file)
     {
         if (!$file) {
