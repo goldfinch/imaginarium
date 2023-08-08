@@ -13,5 +13,6 @@
     alt="{$Title}"
     data-src="{$DefaultImage.URL}"
     src="{$DefaultImagePlaceholder.URL}"
+    style="transform-origin: {$FocusPoint.PercentageX}% {$FocusPoint.PercentageY}%"
   >
 </picture>
