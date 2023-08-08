@@ -182,6 +182,12 @@ class ImageExtension extends Extension
                         }
                     }
 
+                    if ($this->hasRIOption('scale'))
+                    {
+                        $mqImageW = round($mqImageW + ($mqImageW / 100 * $this->getRIOption('scale')));
+                        $mqImageH = round($mqImageH + ($mqImageH / 100 * $this->getRIOption('scale')));
+                    }
+
                     $sizes->push(ArrayData::create([
                       'Breakpoint' => $bp,
                       'Image' => $this->owner->FocusFill($mqImageW, $mqImageH),
