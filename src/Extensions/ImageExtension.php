@@ -104,41 +104,23 @@ class ImageExtension extends Extension
 
         $intrinsicRatio = $intrinsicWidth / $intrinsicHeight;
 
-        // ? default
         // !important keep the descending order : from largest to smallest
-        $breakpoints = [
-          'xl' => 1210,
-          'lg' => 992,
-          'md' => 768,
-          'sm' => 576,
-          // 'xs' => 0, // ! need here as a started point
-        ];
+        $breakpoints = $this->owner->config()->get('imaginarium')['breakpoints'];
+        // xs should not be in this array
+        unset($breakpoints['xs']);
 
-        $breakpointsMax = [
-          'xl' => 1174,
-          'lg' => 960,
-          'md' => 720,
-          'sm' => 540,
-          // 'xs' => 0, // ! need here as a started point
-        ];
+        $breakpointsMax = $this->owner->config()->get('imaginarium')['breakpointsMax'];
+        // xs should not be in this array
+        unset($breakpointsMax['xs']);
 
-        $gutters = [
-          'xl' => 12,
-          'lg' => 12,
-          'md' => 12,
-          'sm' => 12,
-          // 'xs' => 0, // ! need here as a started point
-        ];
+        $gutters = $this->owner->config()->get('imaginarium')['gutters'];
+        unset($gutters['xs']);
 
-        // ? default
         // !important keep the descending order : from largest to smallest
-        $mediaQueries = [
-          'xl' => ['(min-width: %w) and (min-device-pixel-ratio: 2.0)', '(min-width: %w)'],
-          'lg' => ['(min-width: %w) and (min-device-pixel-ratio: 2.0)', '(min-width: %w)'],
-          'md' => ['(min-width: %w) and (min-device-pixel-ratio: 2.0)', '(min-width: %w)'],
-          'sm' => ['(min-width: %w) and (min-device-pixel-ratio: 2.0)', '(min-width: %w)'],
-          // 'xs' => [], // ! keep empty
-        ];
+        $mediaQueries = $this->owner->config()->get('imaginarium')['mediaQueries'];
+        dd($mediaQueries);
+        // xs should not be in this array
+        unset($mediaQueries['xs']);
 
         if (isset($customGutter) && $customGutter)
         {
