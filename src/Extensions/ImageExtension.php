@@ -118,7 +118,6 @@ class ImageExtension extends Extension
 
         // !important keep the descending order : from largest to smallest
         $mediaQueries = $this->owner->config()->get('imaginarium')['mediaQueries'];
-        dd($mediaQueries);
         // xs should not be in this array
         unset($mediaQueries['xs']);
 
@@ -187,6 +186,7 @@ class ImageExtension extends Extension
                       'Breakpoint' => $bp,
                       'Image' => $this->owner->FocusFill($mqImageW, $mqImageH),
                       'MediaQuery' => $this->getSourceMediaQuery($mq, $w),
+                      'FocusPoint' => $this->owner->FocusPoint,
                       // Scale
                     ]));
                 }
