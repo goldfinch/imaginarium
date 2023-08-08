@@ -242,7 +242,7 @@ class ImageExtension extends Extension
           'Sizes' => $sizes,
           'DefaultImage' => $this->owner->FocusFill($defaultWidth, $defaultHeight),
           'DefaultImagePlaceholder' => $this->owner->FocusFill($placeholderWidth, $placeholderHeight),
-        ])->renderWith(['type' => 'Includes', 'ResponsiveImage']);
+        ])->renderWith(['Layout' => 'Goldfinch/Imaginarium/ResponsiveImage']);
     }
 
     protected function Lazy($file)
