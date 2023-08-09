@@ -106,20 +106,53 @@ class ImageExtension extends Extension
 
         // !important keep the descending order : from largest to smallest
         $breakpoints = $this->owner->config()->get('imaginarium')['breakpoints'];
-        // xs should not be in this array
-        unset($breakpoints['xs']);
 
         $breakpointsMax = $this->owner->config()->get('imaginarium')['breakpointsMax'];
-        // xs should not be in this array
-        unset($breakpointsMax['xs']);
 
         $gutters = $this->owner->config()->get('imaginarium')['gutters'];
-        unset($gutters['xs']);
 
         // !important keep the descending order : from largest to smallest
         $mediaQueries = $this->owner->config()->get('imaginarium')['mediaQueries'];
-        // xs should not be in this array
-        unset($mediaQueries['xs']);
+
+        // register new Breakpoints
+        if ($this->hasRIOption('newbp'))
+        {
+            $newBps = [];
+
+            foreach ($this->getRIOption('newbp') as $bp => $v)
+            {
+                $breakpoints[$bp] = $v['bp'];
+
+                if (isset($v['bpmax']))
+                {
+                    $breakpointsMax[$bp] = $v['bpmax'];
+                }
+                else
+                {
+                    $breakpointsMax[$bp] = $v['bp'];
+                }
+
+                // check alias, refer to existing
+                if (isset($mediaQueries[$v['mq']]))
+                {
+                    $mediaQueries[$bp] = $mediaQueries[$v['mq']];
+                }
+                else
+                {
+                    $mediaQueries[$bp] = $v['mq'];
+                }
+
+                // check alias, refer to existing
+                if (isset($gutters[$v['g']]))
+                {
+                    $gutters[$bp] = $gutters[$v['g']];
+                }
+                else
+                {
+                    $gutters[$bp] = $v['g'];
+                }
+            }
+        }
 
         if (isset($customGutter) && $customGutter)
         {
@@ -199,14 +232,16 @@ class ImageExtension extends Extension
         }
 
         // Default image (the max width before the first specified breakpoint), it is assumed that below the first breakpoint, the image is treated as width: 100% within its container
-        $defaultWidth = (end($breakpoints) - 1);
+
+        $baseBreakpoint = array_search(0, $breakpoints);
+        $defaultWidth = min(array_filter($breakpoints));
 
         // Check if custom xs supplied, and use it instead if so
         if ($this->hasRIOption('bpw'))
         {
-            if (isset($this->getRIOption('bpw')['xs']))
+            if (isset($this->getRIOption('bpw')[$baseBreakpoint]))
             {
-                $defaultWidth = $this->getRIOption('bpw')['xs'];
+                $defaultWidth = $this->getRIOption('bpw')[$baseBreakpoint];
             }
         }
 
@@ -214,9 +249,9 @@ class ImageExtension extends Extension
 
         if ($this->hasRIOption('bph'))
         {
-            if (isset($this->getRIOption('bph')['xs']))
+            if (isset($this->getRIOption('bph')[$baseBreakpoint]))
             {
-                $defaultHeight = $this->getRIOption('bph')['xs'];
+                $defaultHeight = $this->getRIOption('bph')[$baseBreakpoint];
             }
         }
 
