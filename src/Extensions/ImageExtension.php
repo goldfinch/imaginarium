@@ -229,7 +229,6 @@ class ImageExtension extends Extension
           'Sizes' => $sizes,
           'DefaultImage' => $this->owner->FocusFill($defaultWidth, $defaultHeight),
           'DefaultImagePlaceholder' => $this->owner->FocusFill($placeholderWidth, $placeholderHeight),
-          'FocusPoint' => $this->owner->FocusPoint,
           'Lazy' => $this->hasRIOption('lazy') ? $this->getRIOption('lazy') : true,
           'LazyLoadingTag' => $this->hasRIOption('loadingtag') ? $this->getRIOption('loadingtag') : true,
         ])->renderWith(['Layout' => 'Goldfinch/Imaginarium/ResponsiveImage']);
