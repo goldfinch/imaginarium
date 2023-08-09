@@ -2,17 +2,24 @@
 	<% loop $Sizes %>
 	<source
     media="{$MediaQuery}"
+    <% if Lazy %>
     data-srcset="{$Image.URL}"
-    data-breakpoint="{$Breakpoint}"
-    data-width="{$Image.Width}"
-    data-height="{$Image.Height}"
+    <% else %>
+    srcset="{$Image.URL}"
+    <% end_if %>
   >
 	<% end_loop %>
   <img
+    <% if LazyLoadingTag %>
+    loading="lazy"
+    <% end_if %>
+    <% if Lazy %>
     class="lazy"
-    alt="{$Title}"
     data-src="{$DefaultImage.URL}"
     src="{$DefaultImagePlaceholder.URL}"
+    <% else %>
+    src="{$DefaultImage.URL}"
+    <% end_if %>
     style="transform-origin: {$FocusPoint.PercentageX}% {$FocusPoint.PercentageY}%"
   >
 </picture>
