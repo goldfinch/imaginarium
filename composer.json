@@ -13,7 +13,8 @@
         "php": ">=8.0",
         "silverstripe/framework": "^5.0",
         "silverstripe/admin": "^2.0",
-        "rosell-dk/webp-convert": "^2.9"
+        "rosell-dk/webp-convert": "^2.9",
+        "shortpixel/shortpixel-php": "*"
     },
     "autoload": {
         "psr-4": {
