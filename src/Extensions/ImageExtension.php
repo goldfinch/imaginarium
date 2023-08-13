@@ -3,14 +3,23 @@
 namespace Goldfinch\Imaginarium\Extensions;
 
 use SilverStripe\ORM\ArrayList;
-use SilverStripe\Core\Extension;
 use SilverStripe\View\ArrayData;
+use SilverStripe\Core\Extension;
+use PhpTek\JSONText\ORM\FieldType\JSONText;
 
 class ImageExtension extends Extension
 {
-    private static $db = [];
+    private static $db = [
+        'Optimized' => 'Boolean',
+        'Variants' => JSONText::class,
+    ];
 
     private $RIOptions = null;
+
+    public function VariantsData()
+    {
+        return new ArrayData($this->dbObject('Variants')->getStoreAsArray());
+    }
 
     public function LazyFocusFill(int $width, int $height)
     {
