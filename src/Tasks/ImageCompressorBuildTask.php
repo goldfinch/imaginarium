@@ -29,12 +29,14 @@ class ImageCompressorBuildTask extends BuildTask
         $client = new ShortPixel();
         $client->setKey(Environment::getEnv('SHORTPIXEL_API_KEY'));
         $client->setOptions([
+          'lossy' => 2,
           'convertto' => '+webp|+avif',
         ]);
 
         $images = Image::get();
 
-        $imageOptimized = 0;
+        $imageTotalOptimized = 0;
+        $imageVariantOptimized = 0;
 
         if ($images->Count())
         {
@@ -42,6 +44,7 @@ class ImageCompressorBuildTask extends BuildTask
 
             foreach($images as $image)
             {
+                dd($image->File->setFromString());
                 // only published images
                 if ($image->canViewStage())
                 {
@@ -57,14 +60,55 @@ class ImageCompressorBuildTask extends BuildTask
                      * Glossy good for origin files
                      */
 
+                    $filepath = pathinfo($image->getUrl(), PATHINFO_DIRNAME);
+                    $filename = pathinfo($image->getUrl(), PATHINFO_FILENAME);
+                    $extension = pathinfo($image->getUrl(), PATHINFO_EXTENSION);
 
-                    $imageOptimized++;
-                    // $source = fromUrls($image->getUrl())->toBuffers();
-                    // dd($source);
+                    // dd($image->getUrl(), $path);
+
+                    $variants = $image->VariantsData();
+
+                    foreach($variants as $variant => $attrs)
+                    {
+                        if ($attrs['optimized'] == 1)
+                        {
+                            continue;
+                        }
+
+                        $variantURL = $filepath . '/' . $filename . '__' . $variant  . '.' . $extension;
+
+                        $source = fromUrls($variantURL)->toBuffers();
+
+                        if ($source && $source->succeeded[0] && $source->succeeded[0]->Status->Message == 'Success')
+                        {
+                            $obj = $source->succeeded[0];
+
+                            dd($obj);
+
+                            // $obj->LosslessURL
+                            // $obj->LossyURL
+
+                            // $obj->WebPLosslessURL
+                            // $obj->WebPLossyURL
+
+                            // $obj->AVIFLosslessURL
+                            // $obj->AVIFLossyURL
+
+                            $variants[$variant]['optimized'] = 1;
+                            $imageVariantOptimized++;
+                        }
+                    }
+
+                    $image->Variants = json_encode($variants);
+                    $image->write();
+
+                    $imageTotalOptimized++;
                 }
             }
         }
 
-        echo $imageOptimized ? 'Images optimized: ' . $imageOptimized : 'Nothing to compress';
+        echo 'Variants: ' . $imageVariantOptimized;
+
+        echo $imageTotalOptimized ? 'Images optimized: ' . $imageTotalOptimized : 'Nothing to compress';
     }
 }
