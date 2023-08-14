@@ -18,7 +18,7 @@ class ImageExtension extends Extension
 
     public function VariantsData()
     {
-        return new ArrayData($this->dbObject('Variants')->getStoreAsArray());
+        return new ArrayData($this->owner->dbObject('Variants')->getStoreAsArray());
     }
 
     public function LazyFocusFill(int $width, int $height)
