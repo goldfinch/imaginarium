@@ -44,7 +44,6 @@ class ImageCompressorBuildTask extends BuildTask
 
             foreach($images as $image)
             {
-                dd($image->File->setFromString());
                 // only published images
                 if ($image->canViewStage())
                 {
@@ -68,6 +67,7 @@ class ImageCompressorBuildTask extends BuildTask
 
                     $variants = $image->VariantsData();
 
+
                     foreach($variants as $variant => $attrs)
                     {
                         if ($attrs['optimized'] == 1)
@@ -83,7 +83,18 @@ class ImageCompressorBuildTask extends BuildTask
                         {
                             $obj = $source->succeeded[0];
 
-                            dd($obj);
+                            // dd($obj);
+
+                            $dataLossy = file_get_contents($obj->LossyURL);
+                            $cfg = ["conflict" => AssetStore::CONFLICT_OVERWRITE];
+
+                            $image_hash = $image->getHash();
+                            $image_filename = $image->File->getFilename();
+
+                            $image->File->setFromString($dataLossy, $image_filename, $image_hash, $variant, $cfg);
+                            // 2 "WideBig41mb-v2.jpg"
+                            // 3 "23fa776befb7821b2a757b83f22c471dc273a632"
+                            // 4 "FitMaxWzYwLDYwXQ"
 
                             // $obj->LosslessURL
                             // $obj->LossyURL
