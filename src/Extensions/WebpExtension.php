@@ -17,20 +17,25 @@ class WebpExtension extends DataExtension
         $folder = rtrim($this->owner->FileFilename, $name);
         $fullpath = $public.'/assets/'.$folder;
 
-        $files = scandir(rtrim($fullpath, '/'));
+        $fpath = rtrim($fullpath, '/');
 
-        $output = "Deleted files:\r\n";
-        foreach ($files as $file) {
-            if ($file === '.' || $file === '..') {
-                continue;
-            }
-            if (substr($file, 0, $namelen) === $namenoext and substr($file, -4) === 'webp') {
-                unlink($fullpath.$file);
-            }
-        }
+        if (is_dir($fpath)) {
 
-        if (is_file($fullpath.$name.'.webp')) {
-            unlink($fullpath.$name.'.webp');
+            $files = scandir($fpath);
+
+            $output = "Deleted files:\r\n";
+            foreach ($files as $file) {
+                if ($file === '.' || $file === '..') {
+                    continue;
+                }
+                if (substr($file, 0, $namelen) === $namenoext and substr($file, -4) === 'webp') {
+                    unlink($fullpath.$file);
+                }
+            }
+
+            if (is_file($fullpath.$name.'.webp')) {
+                unlink($fullpath.$name.'.webp');
+            }
         }
 
         parent::onAfterDelete();

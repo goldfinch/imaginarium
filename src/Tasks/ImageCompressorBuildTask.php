@@ -32,15 +32,15 @@ class ImageCompressorBuildTask extends BuildTask
           'convertto' => '+webp|+avif',
         ]);
 
-        $untinifiedImages = Image::get()->filter('Tinified', 0);
+        $images = Image::get();
 
-        $imageCount = 0;
+        $imageOptimized = 0;
 
-        if ($untinifiedImages->Count())
+        if ($images->Count())
         {
             // $sha1FileHash = new Sha1FileHashingService;
 
-            foreach($untinifiedImages as $image)
+            foreach($images as $image)
             {
                 // only published images
                 if ($image->canViewStage())
@@ -57,35 +57,14 @@ class ImageCompressorBuildTask extends BuildTask
                      * Glossy good for origin files
                      */
 
-                    $asetValues = $image->File->getValue();
-                    $store = Injector::inst()->get(AssetStore::class);
 
-                    $getID = new ReflectionMethod(FlysystemAssetStore::class, 'getFileID');
-                    $getID->setAccessible(true);
-                    $flyID = $getID->invoke($store, $asetValues['Filename'], $asetValues['Hash']);
-                    $getFileSystem = new ReflectionMethod(FlysystemAssetStore::class, 'getFilesystemFor');
-                    $getFileSystem->setAccessible(true);
-
-                    $system = $getFileSystem->invoke($store, $flyID);
-
-                    $findVariants = new ReflectionMethod(FlysystemAssetStore::class, 'findVariants');
-                    $findVariants->setAccessible(true);
-
-                    foreach ($findVariants->invoke($store, $flyID, $system) as $variant)
-                    {
-                        $isGenerated = strpos($variant, '__');
-                        if (!$isGenerated) {
-                            continue;
-                        }
-                        // $system->delete($variant);
-                    }
-
+                    $imageOptimized++;
                     // $source = fromUrls($image->getUrl())->toBuffers();
                     // dd($source);
                 }
             }
         }
 
-        echo $imageCount ? 'Images tinified: ' . $imageCount : 'Nothing to compress';
+        echo $imageOptimized ? 'Images optimized: ' . $imageOptimized : 'Nothing to compress';
     }
 }
