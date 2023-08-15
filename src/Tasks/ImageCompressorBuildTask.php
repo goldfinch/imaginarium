@@ -4,15 +4,16 @@ namespace Goldfinch\Imaginarium\Tasks;
 
 use ReflectionMethod;
 use ShortPixel\ShortPixel;
+use App\FlysystemAssetStore;
 use SilverStripe\Assets\Image;
+use App\Models\CompressedImage;
 use SilverStripe\Dev\BuildTask;
+use function ShortPixel\fromUrls;
 use SilverStripe\Control\Director;
 use SilverStripe\Core\Environment;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Storage\AssetStore;
-use App\FlysystemAssetStore;
 use SilverStripe\Assets\Storage\Sha1FileHashingService;
-use function ShortPixel\fromUrls;
 
 class ImageCompressorBuildTask extends BuildTask
 {
@@ -27,14 +28,14 @@ class ImageCompressorBuildTask extends BuildTask
     [
       origin => [
         compressions => [
-          tiny => [{name}, {size}],
-          tiny-webp => [{name}, {size}],
-          spix => [{name}, {size}],
-          spix => [{name}, {size}],
-          spix-webp => [{name}, {size}],
-          spix-avif => [{name}, {size}],
-          spix-g-webp => [{name}, {size}],
-          spix-g-avif => [{name}, {size}],
+          tiny => [{name}, {hash}, {size}],
+          tiny-webp => [{name}, {hash}, {size}],
+          spix => [{name}, {hash}, {size}],
+          spix => [{name}, {hash}, {size}],
+          spix-w => [{name}, {hash}, {size}],
+          spix-a => [{name}, {hash}, {size}],
+          spix-g-webp => [{name}, {hash}, {size}],
+          spix-g-avif => [{name}, {hash}, {size}],
         ],
       ],
       variants => [
@@ -46,15 +47,16 @@ class ImageCompressorBuildTask extends BuildTask
           height => '',
           size => '',
           fn => '',
+          hash => '',
           compressions => [
-            tiny => [{name}, {size}],
-            tiny-webp => [{name}, {size}],
-            spix => [{name}, {size}],
-            spix => [{name}, {size}],
-            spix-webp => [{name}, {size}],
-            spix-avif => [{name}, {size}],
-            spix-g-webp => [{name}, {size}],
-            spix-ll-avif => [{name}, {size}],
+            t => [{name}, {hash}, {size}],
+            t-w => [{name}, {hash}, {size}],
+            s => [{name}, {hash}, {size}],
+            s => [{name}, {hash}, {size}],
+            s-w => [{name}, {hash}, {size}],
+            s-a => [{name}, {hash}, {size}],
+            s-g-w => [{name}, {hash}, {size}],
+            s-ll-a => [{name}, {hash}, {size}],
           ],
         ],
       ],
@@ -68,6 +70,41 @@ class ImageCompressorBuildTask extends BuildTask
     protected $title = 'Image compressor';
 
     protected $description = 'Compress image assets';
+
+    protected function generatePatterns($compressor, $branches, $compressionTypes, $quality)
+    {
+        $stack = [];
+
+        foreach ($branches as $branch => $converts)
+        {
+            foreach ($compressionTypes as $type)
+            {
+                foreach ($converts as $format)
+                {
+                    $stack[$branch][] = $compressor . '_' . $type . '_' . $format;
+                }
+            }
+        }
+        // foreach ($branches as $key => $branch)
+        // {
+        //     foreach ($branch as $kc => $convert)
+        //     {
+        //         if ($convert == 'webp')
+        //         {
+        //             $c = 'w';
+        //         }
+        //         else if ($convert == 'avif')
+        //         {
+        //             $c = 'a';
+        //         }
+
+        //         $branches[$key][$kc] = $pattern . '_' . $c;
+        //         // dd($pattern,$branches, $compressor, $key, $branch, $convert);
+        //     }
+        // }
+
+        return $stack;
+    }
 
     public function run($request)
     {
@@ -88,15 +125,61 @@ class ImageCompressorBuildTask extends BuildTask
         // Environment::setTimeLimitMax();
         // Environment::setMemoryLimitMax();
 
-        $quality = 'lossy';
+        // config settings
+        // $compressor = 'sp'; // sp - shortpixel, tp - tinypng
+        // $compressionTypes = ['lossy', 'glossy', 'lossless'];
+        // $compressionFormats = ['origin', 'webp', 'avif'];
+
+        /**
+         * Compression rules:
+         *
+         * sp[origin][lossy]
+         * sp[avif][lossless]
+         * sp[webp][glossy,lossy]
+         *
+         * tp[origin]
+         * tp[webp]
+         *
+         * sc[webp]
+         *
+         * ----
+         *
+         * Compression:
+         *
+         * sp-origin-lossy
+         * tp-webp
+         * sc-webp
+         *
+         */
+
+        // Compression rules from config (yml)
+        // $compressionRules = CompressedImage::config();
+
+        // dd($compressionRules->get('compression_rules'));
+        // dd(CompressedImage::getSourceCompressionRules());
+
+        // sub config
+        // $quality = 'lossy'; // TODO: should be based on $compressionTypes
+        // $_spExtraFormats = ['webp', 'avif'];
+        // $convertto = '';
+
+        // foreach ($compressionFormats as $format)
+        // {
+        //     if (in_array($format, $_spExtraFormats))
+        //     {
+        //         if ($convertto != '') $convertto .= '|';
+
+        //         $convertto .= '+' . $format;
+        //     }
+        // }
 
         // ! the lossless return same as lossy, so we ignore it here
 
         $client = new ShortPixel();
         $client->setKey(Environment::getEnv('SHORTPIXEL_API_KEY'));
         $client->setOptions([
-          'lossy' => $quality == 'lossy' ? 1 : 2, // 1 - lossy, 2 - glossy, 0 - lossless
-          'convertto' => '+webp|+avif',
+          'lossy' => 1, // $quality == 'lossy' ? 1 : 2, // 1 - lossy, 2 - glossy, 0 - lossless
+          'convertto' => '+webp|+avif', // $convertto,
           'notify_me' => null,
           'wait' => 300,
           'total_wait' => 300,
@@ -106,6 +189,17 @@ class ImageCompressorBuildTask extends BuildTask
 
         $imageTotalOptimized = 0;
         $imageVariantOptimized = 0;
+
+        // $exConvertto = explode('|', str_replace('+', '', $convertto));
+
+        // $branches = [
+        //   'original' => $exConvertto,
+        //   'variant' => $exConvertto,
+        // ];
+
+        // $patterns = $this->generatePatterns($compressor, $branches, $compressionTypes, $quality);
+
+        // dd($patterns);
 
         if ($images->Count())
         {
@@ -131,21 +225,7 @@ class ImageCompressorBuildTask extends BuildTask
 
                     $manipulatedData = $image->ManipulatedData();
 
-                    // dd($manipulatedData);
-
                     $urlsToCompress = [];
-
-                    // Getting origin S3 url (skipping CDN url that won't work with file_get_contents)
-                    $store = Injector::inst()->get(AssetStore::class);
-                    $getID = new ReflectionMethod(FlysystemAssetStore::class, 'getFileID');
-                    $getID->setAccessible(true);
-                    $fileID = $getID->invoke($store, $image->Filename, $image->Hash, $image->Variant);
-                    $getFileSystem = new ReflectionMethod(FlysystemAssetStore::class, 'getFilesystemFor');
-                    $getFileSystem->setAccessible(true);
-                    $system = $getFileSystem->invoke($store, $fileID);
-
-                    $adapter = $store->getPublicFilesystem()->getAdapter()->getAdapter();
-                    $OriginS3Link = $adapter->getClient()->getObjectUrl($adapter->getBucket(), $adapter->applyPathPrefix($fileID));
 
                     // https://starter-assets.s3.ap-southeast-2.amazonaws.com/public/WideBig41mb.jpg
                     // https://d2x03rcss2l1f5.cloudfront.net/public/WideBig41mb.jpg (CloudFront blocks get_contents)
@@ -158,17 +238,30 @@ class ImageCompressorBuildTask extends BuildTask
 
                     // 1) Need to know what compression are about to happen, so that we can check HASH and Signature in CompressedImage and skip the url
 
+                    // CompressedImage::checkCompression(sha1(file_get_contents($OriginS3Link)));
+
                     // condition : original
-                    $urlsToCompress[] = $image->getUrl();
+                    // if there are any compresison rules that haven't been applied to the source file, then we want to include it
+                    if (count(CompressedImage::checkSourceCompression($image, 'out')))
+                    {
+                        $urlsToCompress[] = $image->getUrl();
+                    }
 
                     foreach($manipulatedData as $variant => $attrs)
                     {
-                        $urlsToCompress[] = $filepath . '/' . $filename . '__' . $variant  . '.' . $extension;
+                        $variantUrl = $filepath . '/' . $filename . '__' . $variant  . '.' . $extension;
+
+                        if (count(CompressedImage::checkVariantCompression($attrs, $variantUrl, 'out')))
+                        {
+                            $urlsToCompress[] = $variantUrl;
+                        }
                     }
 
-                    $ShortPixelResponse = fromUrls($urlsToCompress)->toBuffers();
+                    // $ShortPixelResponse = fromUrls($urlsToCompress)->toBuffers();
 
-                    dd($ShortPixelResponse);
+                    dd($urlsToCompress);
+
+                    exit;
 
                     if (
                       $ShortPixelResponse &&
