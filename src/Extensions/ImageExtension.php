@@ -11,14 +11,14 @@ class ImageExtension extends Extension
 {
     private static $db = [
         'Optimized' => 'Boolean',
-        'Variants' => JSONText::class,
+        'ManipulatedData' => JSONText::class,
     ];
 
     private $RIOptions = null;
 
-    public function VariantsData()
+    public function ManipulatedData()
     {
-        return $this->owner->dbObject('Variants')->getStoreAsArray();
+        return $this->owner->dbObject('ManipulatedData')->getStoreAsArray();
     }
 
     public function LazyFocusFill(int $width, int $height)
