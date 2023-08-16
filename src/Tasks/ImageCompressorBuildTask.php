@@ -8,6 +8,7 @@ use App\FlysystemAssetStore;
 use SilverStripe\Assets\Image;
 use App\Models\CompressedImage;
 use SilverStripe\Dev\BuildTask;
+use ShortPixel\AccountException;
 use function ShortPixel\fromUrls;
 use SilverStripe\Control\Director;
 use SilverStripe\Core\Environment;
@@ -26,7 +27,7 @@ class ImageCompressorBuildTask extends BuildTask
      * _sll
      *
     [
-      origin => [
+      source => [
         compressions => [
           tiny => [{name}, {hash}, {size}],
           tiny-webp => [{name}, {hash}, {size}],
@@ -175,11 +176,13 @@ class ImageCompressorBuildTask extends BuildTask
 
         // ! the lossless return same as lossy, so we ignore it here
 
+        $spLossy = 'lossy'; // 1 - lossy, 2 - glossy, 0 - lossless
+        $spConvertto = '+webp|+avif';
         $client = new ShortPixel();
         $client->setKey(Environment::getEnv('SHORTPIXEL_API_KEY'));
         $client->setOptions([
-          'lossy' => 1, // $quality == 'lossy' ? 1 : 2, // 1 - lossy, 2 - glossy, 0 - lossless
-          'convertto' => '+webp|+avif', // $convertto,
+          'lossy' => $spLossy == 'lossy' ? 1 : 2, // 1 - lossy, 2 - glossy, 0 - lossless
+          'convertto' => $spConvertto,
           'notify_me' => null,
           'wait' => 300,
           'total_wait' => 300,
@@ -242,150 +245,423 @@ class ImageCompressorBuildTask extends BuildTask
 
                     // condition : original
                     // if there are any compresison rules that haven't been applied to the source file, then we want to include it
-                    if (count(CompressedImage::checkSourceCompression($image, 'out')))
+                    $missedSourceCompressions = CompressedImage::checkSourceCompression($image, 'out');
+
+                    if (count($missedSourceCompressions))
                     {
-                        $urlsToCompress[] = $image->getUrl();
+                        $urlsToCompress[] = [
+                          'url' => $image->getUrl(),
+                          'variant' => $image->getFilename(),
+                          'hash' => $image->getHash(),
+                          'compressions' => $missedSourceCompressions,
+                        ];
                     }
 
                     foreach($manipulatedData as $variant => $attrs)
                     {
                         $variantUrl = $filepath . '/' . $filename . '__' . $variant  . '.' . $extension;
+                        $missedCompressions = CompressedImage::checkVariantCompression($attrs, $variantUrl, 'out');
 
-                        if (count(CompressedImage::checkVariantCompression($attrs, $variantUrl, 'out')))
+                        if (count($missedCompressions))
                         {
-                            $urlsToCompress[] = $variantUrl;
+                            $urlsToCompress[] = [
+                              'url' => $variantUrl,
+                              'variant' => $variant,
+                              'hash' => $attrs['hash'],
+                              'compressions' => $missedCompressions,
+                            ];
                         }
                     }
 
-                    // $ShortPixelResponse = fromUrls($urlsToCompress)->toBuffers();
+                    $urlsToCompress = collect($urlsToCompress);
+                    $_SESSION['shortpixel-test'] = null;
+                    // DEBUGGING
+                    try
+                    {
+                        if (!isset($_SESSION['shortpixel-test']))
+                        {
+                            $ShortPixelResponse = fromUrls($urlsToCompress->pluck('url')->all())->toBuffers();
+                            $_SESSION['shortpixel-test'] = serialize($ShortPixelResponse);
+                        }
+                        else
+                        {
+                            $ShortPixelResponse = unserialize($_SESSION['shortpixel-test']);
+                        }
+                    } catch (\ShortPixel\AccountException $e) {
+                        dd($e->getMessage());
+                    }
 
-                    dd($urlsToCompress);
 
-                    exit;
+                    // $currentVariant = $urlsToCompress->where('url', $variantUrl)->first();
 
+                    // $ss = collect($currentVariant['compressions'])->reject(function ($item) {
+                    //     return strpos($item, 'origin') === false;
+                    // });
+
+                    // foreach($ss as $s)
+                    // {
+                    //   dd($s);
+                    // }
+
+                    // dd(collect($currentVariant['compressions'])->reject(function ($item) {
+                    //     return strpos($item, 'origin') === false;
+                    // })->count());
+                      // dd($ShortPixelResponse);
                     if (
                       $ShortPixelResponse &&
-                      $ShortPixelResponse->succeeded[0] &&
-                      $source->succeeded[0]->Status->Message == 'Success'
+                      property_exists($ShortPixelResponse, 'succeeded') &&
+                      count($ShortPixelResponse->succeeded)
                     )
                     {
                         $cfg = ['conflict' => AssetStore::CONFLICT_OVERWRITE];
                         $image_hash = $image->getHash();
                         $image_filename = $image->File->getFilename();
 
-                        foreach($ShortPixelResponse->succeeded as $compressedItem)
+                        foreach ($ShortPixelResponse->succeeded as $item)
                         {
-                            // 1) Origin - LossyURL
-                            $url = file_get_contents($compressedItem->LossyURL);
+                            if ($item->Status->Message == 'Success')
+                            {
+                                $currentVariant = $urlsToCompress->where('url', $item->OriginalURL)->first();
 
-                            $image->File->setFromString($url, $image_filename, $image_hash, $variant, $cfg);
-                            $manipulatedData[$variant]['optimized_size'] = $compressedItem->LossySize;
-                            $manipulatedData[$variant]['optimized'] = 1;
+                                $originCompressions = collect($currentVariant['compressions'])->reject(function ($item) {
+                                    return strpos($item, 'origin') === false;
+                                });
 
-                            // 2) WebP - Lossy
-                            $url = file_get_contents($compressedItem->WebPLossyURL);
+                                $webpCompressions = collect($currentVariant['compressions'])->reject(function ($item) {
+                                    return strpos($item, 'webp') === false;
+                                });
 
-                            $image->File->setFromString($url, $image_filename, $image_hash, $variant.'_webp', $cfg);
-                            $manipulatedData[$variant]['webp'] = $compressedItem->WebPLossySize;
+                                $avifCompressions = collect($currentVariant['compressions'])->reject(function ($item) {
+                                    return strpos($item, 'avif') === false;
+                                });
 
-                            // rename _webp > .webp
-                            $rename->invoke($store, $filename . '__' . $variant.'_webp.'.$extension, $image_hash, $variant.'.webp', $image_filename, $store);
+                                // 1 - Origin
 
-                            // 3) Avif - Lossless
-                            $url = file_get_contents($compressedItem->AVIFLosslessURL);
+                                if ($originCompressions->count())
+                                {
+                                    foreach($originCompressions as $c)
+                                    {
+                                        $url = null;
+                                        $size = null;
 
-                            $image->File->setFromString($url, $image_filename, $image_hash, $variant.'_avif', $cfg);
-                            $manipulatedData[$variant]['avif'] = $compressedItem->AVIFLosslessSize;
+                                        if (strpos($c, 'lossy') !== false && $spLossy == 'lossy')
+                                        {
+                                            $url = $item->LossyURL;
+                                            $size = $item->LossySize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
+                                        else if (strpos($c, 'glossy') !== false && $spLossy == 'glossy')
+                                        {
+                                            // ! the glossy data here is under Lossy
+                                            $url = $item->LossyURL;
+                                            $size = $item->LossySize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
+                                        else if (strpos($c, 'lossless') !== false)
+                                        {
+                                            $url = $item->LosslessURL;
+                                            $size = $item->LosslessSize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
 
-                            // $obj->LosslessURL
-                            // $obj->LossyURL
+                                        if ($url && $size)
+                                        {
+                                            $imageData = file_get_contents($url);
 
-                            // $obj->WebPLosslessURL
-                            // $obj->WebPLossyURL
+                                            $variant = $currentVariant['variant'];
+                                            $currentHash = sha1($imageData);
 
-                            // $obj->AVIFLosslessURL
-                            // $obj->AVIFLossyURL
-                            $imageVariantOptimized++;
+                                            // pass through some data via $cfg
+                                            $cfg['flydata'] = [
+                                              'compression' => $c,
+                                              'size' => $size,
+                                              'hash' => $currentHash,
+                                            ];
+
+                                            // ! Check when debugging - $currentVariant['variant'], could be unnecessary
+                                            $image->File->setFromString($imageData, $image_filename, $image_hash, $variant, $cfg);
+
+                                            $newCompression = new CompressedImage;
+                                            $newCompression->Hash = $currentHash; // ! see if we need hash of the compressed image at all
+                                            // $newCompression->Filename = $compressionName;
+                                            $newCompression->Compression = $c;
+                                            $newCompression->Size = $size;
+                                            $newCompression->Parent = $currentVariant['hash'];
+                                            $newCompression->write();
+                                        }
+                                    }
+                                }
+
+                                // 2 - WebP
+
+                                if ($webpCompressions->count() && strpos($spConvertto, 'webp') !== false)
+                                {
+
+                                    foreach($webpCompressions as $c)
+                                    {
+                                        $url = null;
+                                        $size = null;
+
+                                        if (strpos($c, 'lossy') !== false && $spLossy == 'lossy')
+                                        {
+                                            $url = $item->WebPLossyURL;
+                                            $size = $item->WebPLossySize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
+                                        else if (strpos($c, 'glossy') !== false && $spLossy == 'glossy')
+                                        {
+                                            // ! the glossy data here is under Lossy
+                                            $url = $item->WebPLossyURL;
+                                            $size = $item->WebPLossySize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
+                                        else if (strpos($c, 'lossless') !== false)
+                                        {
+                                            $url = $item->WebPLosslessURL;
+                                            $size = $item->WebPLosslessSize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
+
+                                        if ($url && $size)
+                                        {
+                                            $imageData = file_get_contents($url);
+
+                                            $variant = $currentVariant['variant'];
+                                            $currentHash = sha1($imageData);
+
+                                            // pass through some data via $cfg
+                                            $cfg['flydata'] = [
+                                              'compression' => $c,
+                                              'size' => $size,
+                                              'hash' => $currentHash,
+                                            ];
+
+                                            // ! Check when debugging - $currentVariant['variant'], could be unnecessary
+                                            $image->File->setFromString($imageData, $image_filename, $image_hash, $variant, $cfg);
+
+                                            $newCompression = new CompressedImage;
+                                            $newCompression->Hash = $currentHash; // ! see if we need hash of the compressed image at all
+                                            // $newCompression->Filename = $compressionName;
+                                            $newCompression->Compression = $c;
+                                            $newCompression->Size = $size;
+                                            $newCompression->Parent = $currentVariant['hash'];
+                                            $newCompression->write();
+
+                                            // rename _webp > .webp
+                                            // $rename->invoke($store, $filename . '__' . $variant.'_webp.'.$extension, $image_hash, $variant.'.webp', $image_filename, $store);
+                                        }
+                                    }
+                                }
+
+                                // 3 - Avif
+
+                                if ($avifCompressions->count() && strpos($spConvertto, 'avif') !== false)
+                                {
+                                    foreach($avifCompressions as $c)
+                                    {
+                                        $url = null;
+                                        $size = null;
+
+                                        if (strpos($c, 'lossy') !== false && $spLossy == 'lossy')
+                                        {
+                                            $url = $item->AVIFLossyURL;
+                                            $size = $item->AVIFLossySize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
+                                        else if (strpos($c, 'glossy') !== false && $spLossy == 'glossy')
+                                        {
+                                            // ! the glossy data here is under Lossy
+                                            $url = $item->AVIFLossyURL;
+                                            $size = $item->AVIFLossySize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
+                                        else if (strpos($c, 'lossless') !== false)
+                                        {
+                                            $url = $item->AVIFLosslessURL;
+                                            $size = $item->AVIFLosslessSize;
+                                            // $compressionName = $currentVariant['variant'];
+                                        }
+
+                                        if ($url && $size)
+                                        {
+                                            $imageData = file_get_contents($url);
+
+                                            $variant = $currentVariant['variant'];
+                                            $currentHash = sha1($imageData);
+
+                                            // pass through some data via $cfg
+                                            $cfg['flydata'] = [
+                                              'compression' => $c,
+                                              'size' => $size,
+                                              'hash' => $currentHash,
+                                            ];
+
+                                            // ! Check when debugging - $currentVariant['variant'], could be unnecessary
+                                            $image->File->setFromString($imageData, $image_filename, $image_hash, $variant, $cfg);
+
+                                            $newCompression = new CompressedImage;
+                                            $newCompression->Hash = $currentHash; // ! see if we need hash of the compressed image at all
+                                            // $newCompression->Filename = $compressionName;
+                                            $newCompression->Compression = $c;
+                                            $newCompression->Size = $size;
+                                            $newCompression->Parent = $currentVariant['hash'];
+                                            $newCompression->write();
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    dd($ShortPixelResponse);
 
-                    exit;
-                    foreach($manipulatedData as $variant => $attrs)
-                    {
-                        if ($attrs['optimized'] == 1)
-                        {
-                            continue;
-                        }
 
-                        $variantURL = $filepath . '/' . $filename . '__' . $variant  . '.' . $extension;
 
-                        $source = fromUrls($variantURL)->toBuffers();
 
-                        if ($source && $source->succeeded[0] && $source->succeeded[0]->Status->Message == 'Success')
-                        {
-                            $cfg = ['conflict' => AssetStore::CONFLICT_OVERWRITE];
-                            $image_hash = $image->getHash();
-                            $image_filename = $image->File->getFilename();
 
-                            $obj = $source->succeeded[0];
 
-                            // 1) Origin - LossyURL
-                            $url = file_get_contents($obj->LossyURL);
 
-                            $image->File->setFromString($url, $image_filename, $image_hash, $variant, $cfg);
 
-                            // $imagesize = getimagesize($url);
 
-                            // $size_in_bytes = (int) (strlen(rtrim($url, '=')) * 3 / 4);
-                            // $headers = get_headers($url, 1);
 
-                            // $manipulatedData[$variant]['optimized_size'] = $headers['Content-Length']; // $size_in_bytes;
-                            $manipulatedData[$variant]['optimized'] = 1;
 
-                            // 2) WebP - Lossy
-                            $url = file_get_contents($obj->WebPLossyURL);
-                            $image->File->setFromString($url, $image_filename, $image_hash, $variant.'_webp', $cfg);
 
-                            $rename->invoke($store, $filename . '__' . $variant.'_webp.'.$extension, $image_hash, $variant.'.webp', $image_filename, $store);
 
-                            // $size_in_bytes = (int) (strlen(rtrim($url, '=')) * 3 / 4);
-                            // $headers = get_headers($url, 1);
 
-                            // $manipulatedData[$variant]['webp'] = $headers['Content-Length']; // $size_in_bytes;
 
-                            // 3) Avif - Lossless
-                            $url = file_get_contents($obj->AVIFLosslessURL);
-                            $image->File->setFromString($url, $image_filename, $image_hash, $variant.'_avif', $cfg);
 
-                            // $size_in_bytes = (int) (strlen(rtrim($url, '=')) * 3 / 4);
-                            // $headers = get_headers($url, 1);
 
-                            // $manipulatedData[$variant]['avif'] = $headers['Content-Length']; // $size_in_bytes;
 
-                            // $obj->LosslessURL
-                            // $obj->LossyURL
 
-                            // $obj->WebPLosslessURL
-                            // $obj->WebPLossyURL
 
-                            // $obj->AVIFLosslessURL
-                            // $obj->AVIFLossyURL
-                            $imageVariantOptimized++;
-                        }
-                    }
 
-                    $image->Variants = json_encode($manipulatedData);
-                    $image->write();
 
-                    $imageTotalOptimized++;
+
+                    // exit;
+
+                    // if (
+                    //   $ShortPixelResponse &&
+                    //   $ShortPixelResponse->succeeded[0] &&
+                    //   $source->succeeded[0]->Status->Message == 'Success'
+                    // )
+                    // {
+                    //     $cfg = ['conflict' => AssetStore::CONFLICT_OVERWRITE];
+                    //     $image_hash = $image->getHash();
+                    //     $image_filename = $image->File->getFilename();
+
+                    //     foreach($ShortPixelResponse->succeeded as $compressedItem)
+                    //     {
+                    //         // 1) Origin - LossyURL
+                    //         $url = file_get_contents($compressedItem->LossyURL);
+
+                    //         $image->File->setFromString($url, $image_filename, $image_hash, $variant, $cfg);
+                    //         $manipulatedData[$variant]['optimized_size'] = $compressedItem->LossySize;
+                    //         $manipulatedData[$variant]['optimized'] = 1;
+
+                    //         // 2) WebP - Lossy
+                    //         $url = file_get_contents($compressedItem->WebPLossyURL);
+
+                    //         $image->File->setFromString($url, $image_filename, $image_hash, $variant.'_webp', $cfg);
+                    //         $manipulatedData[$variant]['webp'] = $compressedItem->WebPLossySize;
+
+                    //         // rename _webp > .webp
+                    //         $rename->invoke($store, $filename . '__' . $variant.'_webp.'.$extension, $image_hash, $variant.'.webp', $image_filename, $store);
+
+                    //         // 3) Avif - Lossless
+                    //         $url = file_get_contents($compressedItem->AVIFLosslessURL);
+
+                    //         $image->File->setFromString($url, $image_filename, $image_hash, $variant.'_avif', $cfg);
+                    //         $manipulatedData[$variant]['avif'] = $compressedItem->AVIFLosslessSize;
+
+                    //         // $obj->LosslessURL
+                    //         // $obj->LossyURL
+
+                    //         // $obj->WebPLosslessURL
+                    //         // $obj->WebPLossyURL
+
+                    //         // $obj->AVIFLosslessURL
+                    //         // $obj->AVIFLossyURL
+                    //         $imageVariantOptimized++;
+                    //     }
+                    // }
+
+                    // dd($ShortPixelResponse);
+
+                    // exit;
+
+                    // foreach($manipulatedData as $variant => $attrs)
+                    // {
+                    //     if ($attrs['optimized'] == 1)
+                    //     {
+                    //         continue;
+                    //     }
+
+                    //     $variantURL = $filepath . '/' . $filename . '__' . $variant  . '.' . $extension;
+
+                    //     $source = fromUrls($variantURL)->toBuffers();
+
+                    //     if ($source && $source->succeeded[0] && $source->succeeded[0]->Status->Message == 'Success')
+                    //     {
+                    //         $cfg = ['conflict' => AssetStore::CONFLICT_OVERWRITE];
+                    //         $image_hash = $image->getHash();
+                    //         $image_filename = $image->File->getFilename();
+
+                    //         $obj = $source->succeeded[0];
+
+                    //         // 1) Origin - LossyURL
+                    //         $url = file_get_contents($obj->LossyURL);
+
+                    //         $image->File->setFromString($url, $image_filename, $image_hash, $variant, $cfg);
+
+                    //         // $imagesize = getimagesize($url);
+
+                    //         // $size_in_bytes = (int) (strlen(rtrim($url, '=')) * 3 / 4);
+                    //         // $headers = get_headers($url, 1);
+
+                    //         // $manipulatedData[$variant]['optimized_size'] = $headers['Content-Length']; // $size_in_bytes;
+                    //         $manipulatedData[$variant]['optimized'] = 1;
+
+                    //         // 2) WebP - Lossy
+                    //         $url = file_get_contents($obj->WebPLossyURL);
+                    //         $image->File->setFromString($url, $image_filename, $image_hash, $variant.'_webp', $cfg);
+
+                    //         $rename->invoke($store, $filename . '__' . $variant.'_webp.'.$extension, $image_hash, $variant.'.webp', $image_filename, $store);
+
+                    //         // $size_in_bytes = (int) (strlen(rtrim($url, '=')) * 3 / 4);
+                    //         // $headers = get_headers($url, 1);
+
+                    //         // $manipulatedData[$variant]['webp'] = $headers['Content-Length']; // $size_in_bytes;
+
+                    //         // 3) Avif - Lossless
+                    //         $url = file_get_contents($obj->AVIFLosslessURL);
+                    //         $image->File->setFromString($url, $image_filename, $image_hash, $variant.'_avif', $cfg);
+
+                    //         // $size_in_bytes = (int) (strlen(rtrim($url, '=')) * 3 / 4);
+                    //         // $headers = get_headers($url, 1);
+
+                    //         // $manipulatedData[$variant]['avif'] = $headers['Content-Length']; // $size_in_bytes;
+
+                    //         // $obj->LosslessURL
+                    //         // $obj->LossyURL
+
+                    //         // $obj->WebPLosslessURL
+                    //         // $obj->WebPLossyURL
+
+                    //         // $obj->AVIFLosslessURL
+                    //         // $obj->AVIFLossyURL
+                    //         $imageVariantOptimized++;
+                    //     }
+                    // }
+
+                    // $image->Variants = json_encode($manipulatedData);
+                    // $image->write();
+
+                    // $imageTotalOptimized++;
                 }
             }
         }
 
-        echo 'Variants: ' . $imageVariantOptimized;
+        // echo 'Variants: ' . $imageVariantOptimized;
 
-        echo $imageTotalOptimized ? 'Images optimized: ' . $imageTotalOptimized : 'Nothing to compress';
+        // echo $imageTotalOptimized ? 'Images optimized: ' . $imageTotalOptimized : 'Nothing to compress';
     }
 }
