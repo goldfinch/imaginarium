@@ -251,13 +251,16 @@ class ImageCompressorBuildTask extends BuildTask
                     {
                         $urlsToCompress[] = [
                           'url' => $image->getUrl(),
-                          'variant' => $image->getFilename(),
+                          'extension' => $image->getExtension(),
+                          'filename' => current(explode('.', $image->getFilename())),
+                          'variant' => '',
                           'hash' => $image->getHash(),
                           'compressions' => $missedSourceCompressions,
+                          'type' => 'source',
                         ];
                     }
 
-                    foreach($manipulatedData as $variant => $attrs)
+                    foreach($manipulatedData['variants'] as $variant => $attrs)
                     {
                         $variantUrl = $filepath . '/' . $filename . '__' . $variant  . '.' . $extension;
                         $missedCompressions = CompressedImage::checkVariantCompression($attrs, $variantUrl, 'out');
@@ -266,12 +269,17 @@ class ImageCompressorBuildTask extends BuildTask
                         {
                             $urlsToCompress[] = [
                               'url' => $variantUrl,
+                              'extension' => $extension,
+                              'filename' => $filename,
                               'variant' => $variant,
-                              'hash' => $attrs['hash'],
+                              'hash' => isset($attrs['hash']) ? $attrs['hash'] : null,
                               'compressions' => $missedCompressions,
+                              'type' => 'variant',
                             ];
                         }
                     }
+
+                    dd($urlsToCompress);
 
                     $urlsToCompress = collect($urlsToCompress);
                     $_SESSION['shortpixel-test'] = null;
@@ -290,7 +298,7 @@ class ImageCompressorBuildTask extends BuildTask
                     } catch (\ShortPixel\AccountException $e) {
                         dd($e->getMessage());
                     }
-
+                    // dd($ShortPixelResponse);
 
                     // $currentVariant = $urlsToCompress->where('url', $variantUrl)->first();
 
@@ -317,11 +325,27 @@ class ImageCompressorBuildTask extends BuildTask
                         $image_hash = $image->getHash();
                         $image_filename = $image->File->getFilename();
 
+                        // dd($urlsToCompress , $ShortPixelResponse->succeeded);
+
                         foreach ($ShortPixelResponse->succeeded as $item)
                         {
                             if ($item->Status->Message == 'Success')
                             {
+                                if ($image->getUrl() === $item->OriginalURL)
+                                {
+                                    // if true, this loop cycle is for Source
+                                    $isSource = true;
+                                    $isVariant = false;
+                                }
+                                else
+                                {
+                                    // if not true, this loop cycle is for Variant
+                                    $isSource = false;
+                                    $isVariant = true;
+                                }
+
                                 $currentVariant = $urlsToCompress->where('url', $item->OriginalURL)->first();
+                                // dd(currentVariant);
 
                                 $originCompressions = collect($currentVariant['compressions'])->reject(function ($item) {
                                     return strpos($item, 'origin') === false;
@@ -335,7 +359,7 @@ class ImageCompressorBuildTask extends BuildTask
                                     return strpos($item, 'avif') === false;
                                 });
 
-                                // 1 - Origin
+                                // 1 - Origin (of the variant)
 
                                 if ($originCompressions->count())
                                 {
@@ -371,11 +395,17 @@ class ImageCompressorBuildTask extends BuildTask
                                             $variant = $currentVariant['variant'];
                                             $currentHash = sha1($imageData);
 
+                                            $variant_name = $variant . '[' . $c . ']';
+                                            // $variant_name = '[' . $c . ']';
+
                                             // pass through some data via $cfg
                                             $cfg['flydata'] = [
                                               'compression' => $c,
                                               'size' => $size,
                                               'hash' => $currentHash,
+                                              'type' => 'origin',
+                                              'current_variant_type' => $currentVariant['type'],
+                                              'variant_name' => $variant_name,
                                             ];
 
                                             // ! Check when debugging - $currentVariant['variant'], could be unnecessary
@@ -387,7 +417,24 @@ class ImageCompressorBuildTask extends BuildTask
                                             $newCompression->Compression = $c;
                                             $newCompression->Size = $size;
                                             $newCompression->Parent = $currentVariant['hash'];
+                                            $newCompression->Source = $image->getHash();
                                             $newCompression->write();
+
+                                            // var_dump($variant_name, $currentVariant['filename'], $image_filename, 'origin', $item->OriginalURL, json_encode($currentVariant));
+
+                                            // rename origin
+                                            $rename->invoke(
+                                              $store,
+                                              $currentVariant['filename'] . '__' . $variant_name . '.' . $extension,
+                                              $image_hash,
+                                              $variant . '.' . $currentVariant['extension'],
+                                              $image_filename,
+                                              $store,
+                                              $image,
+                                              $isSource,
+                                              $variant_name,
+                                              $currentHash
+                                            );
                                         }
                                     }
                                 }
@@ -396,7 +443,6 @@ class ImageCompressorBuildTask extends BuildTask
 
                                 if ($webpCompressions->count() && strpos($spConvertto, 'webp') !== false)
                                 {
-
                                     foreach($webpCompressions as $c)
                                     {
                                         $url = null;
@@ -429,11 +475,16 @@ class ImageCompressorBuildTask extends BuildTask
                                             $variant = $currentVariant['variant'];
                                             $currentHash = sha1($imageData);
 
+                                            $variant_name = $variant . '[' . $c . ']';
+
                                             // pass through some data via $cfg
                                             $cfg['flydata'] = [
                                               'compression' => $c,
                                               'size' => $size,
                                               'hash' => $currentHash,
+                                              'type' => 'variant',
+                                              'current_variant_type' => $currentVariant['type'],
+                                              'variant_name' => $variant_name,
                                             ];
 
                                             // ! Check when debugging - $currentVariant['variant'], could be unnecessary
@@ -441,14 +492,28 @@ class ImageCompressorBuildTask extends BuildTask
 
                                             $newCompression = new CompressedImage;
                                             $newCompression->Hash = $currentHash; // ! see if we need hash of the compressed image at all
-                                            // $newCompression->Filename = $compressionName;
+                                            // $newCompression->Filename = sha1($currentHash . $c);
                                             $newCompression->Compression = $c;
                                             $newCompression->Size = $size;
                                             $newCompression->Parent = $currentVariant['hash'];
+                                            $newCompression->Source = $image->getHash();
                                             $newCompression->write();
 
+                                            // var_dump($variant_name, $currentVariant['filename'], $image_filename, 'webp', $item->OriginalURL, json_encode($currentVariant));
+
                                             // rename _webp > .webp
-                                            // $rename->invoke($store, $filename . '__' . $variant.'_webp.'.$extension, $image_hash, $variant.'.webp', $image_filename, $store);
+                                            $rename->invoke(
+                                              $store,
+                                              $currentVariant['filename'] . '__' . $variant_name . '.' . $extension,
+                                              $image_hash,
+                                              $variant . '.webp',
+                                              $image_filename,
+                                              $store,
+                                              $image,
+                                              $isSource,
+                                              $variant_name,
+                                              $currentHash
+                                            );
                                         }
                                     }
                                 }
@@ -489,11 +554,16 @@ class ImageCompressorBuildTask extends BuildTask
                                             $variant = $currentVariant['variant'];
                                             $currentHash = sha1($imageData);
 
+                                            $variant_name = $variant . '[' . $c . ']';
+
                                             // pass through some data via $cfg
                                             $cfg['flydata'] = [
                                               'compression' => $c,
                                               'size' => $size,
                                               'hash' => $currentHash,
+                                              'type' => 'variant',
+                                              'current_variant_type' => $currentVariant['type'],
+                                              'variant_name' => $variant_name,
                                             ];
 
                                             // ! Check when debugging - $currentVariant['variant'], could be unnecessary
@@ -505,7 +575,24 @@ class ImageCompressorBuildTask extends BuildTask
                                             $newCompression->Compression = $c;
                                             $newCompression->Size = $size;
                                             $newCompression->Parent = $currentVariant['hash'];
+                                            $newCompression->Source = $image->getHash();
                                             $newCompression->write();
+
+                                            // var_dump($variant_name, $currentVariant['filename'], $image_filename, 'avif', $item->OriginalURL, json_encode($currentVariant));
+
+                                            // rename .avif
+                                            $rename->invoke(
+                                              $store,
+                                              $currentVariant['filename'] . '__' . $variant_name . '.' . $extension,
+                                              $image_hash,
+                                              $variant . '.avif',
+                                              $image_filename,
+                                              $store,
+                                              $image,
+                                              $isSource,
+                                              $variant_name,
+                                              $currentHash
+                                            );
                                         }
                                     }
                                 }
