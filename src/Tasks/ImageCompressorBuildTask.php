@@ -220,7 +220,8 @@ class ImageCompressorBuildTask extends BuildTask
                 // dd($getFileSystem);
 
                 // only published images
-                if ($image->canViewStage())
+                // dd($image->getUrl());
+                if ($image->canViewStage() && $image->getUrl())
                 {
                     $filepath = pathinfo($image->getUrl(), PATHINFO_DIRNAME);
                     $filename = pathinfo($image->getUrl(), PATHINFO_FILENAME);
@@ -263,7 +264,7 @@ class ImageCompressorBuildTask extends BuildTask
                     foreach($manipulatedData['variants'] as $variant => $attrs)
                     {
                         $variantUrl = $filepath . '/' . $filename . '__' . $variant  . '.' . $extension;
-                        $missedCompressions = CompressedImage::checkVariantCompression($attrs, $variantUrl, 'out');
+                        $missedCompressions = CompressedImage::checkVariantCompression($attrs, $variantUrl, $image, 'out');
 
                         if (count($missedCompressions))
                         {
@@ -278,25 +279,26 @@ class ImageCompressorBuildTask extends BuildTask
                             ];
                         }
                     }
-
-                    dd($urlsToCompress);
-
+                    // dd($urlsToCompress);
                     $urlsToCompress = collect($urlsToCompress);
                     $_SESSION['shortpixel-test'] = null;
                     // DEBUGGING
-                    try
+                    if ($urlsToCompress->count())
                     {
-                        if (!isset($_SESSION['shortpixel-test']))
+                        try
                         {
-                            $ShortPixelResponse = fromUrls($urlsToCompress->pluck('url')->all())->toBuffers();
-                            $_SESSION['shortpixel-test'] = serialize($ShortPixelResponse);
+                            if (!isset($_SESSION['shortpixel-test']))
+                            {
+                                $ShortPixelResponse = fromUrls($urlsToCompress->pluck('url')->all())->toBuffers();
+                                $_SESSION['shortpixel-test'] = serialize($ShortPixelResponse);
+                            }
+                            else
+                            {
+                                $ShortPixelResponse = unserialize($_SESSION['shortpixel-test']);
+                            }
+                        } catch (\ShortPixel\AccountException $e) {
+                            dd($e->getMessage());
                         }
-                        else
-                        {
-                            $ShortPixelResponse = unserialize($_SESSION['shortpixel-test']);
-                        }
-                    } catch (\ShortPixel\AccountException $e) {
-                        dd($e->getMessage());
                     }
                     // dd($ShortPixelResponse);
 
@@ -315,8 +317,19 @@ class ImageCompressorBuildTask extends BuildTask
                     //     return strpos($item, 'origin') === false;
                     // })->count());
                       // dd($ShortPixelResponse);
+                    if (!isset($ShortPixelResponse))
+                    {
+                        continue;
+                    }
+
+                    if (count($ShortPixelResponse->pending))
+                    {
+                        // skip unfull request that is pending
+                        echo 'pending';
+                        continue;
+                    }
+
                     if (
-                      $ShortPixelResponse &&
                       property_exists($ShortPixelResponse, 'succeeded') &&
                       count($ShortPixelResponse->succeeded)
                     )
@@ -432,7 +445,7 @@ class ImageCompressorBuildTask extends BuildTask
                                               $store,
                                               $image,
                                               $isSource,
-                                              $variant_name,
+                                              $variant,
                                               $currentHash
                                             );
                                         }
@@ -511,7 +524,7 @@ class ImageCompressorBuildTask extends BuildTask
                                               $store,
                                               $image,
                                               $isSource,
-                                              $variant_name,
+                                              $variant,
                                               $currentHash
                                             );
                                         }
@@ -590,7 +603,7 @@ class ImageCompressorBuildTask extends BuildTask
                                               $store,
                                               $image,
                                               $isSource,
-                                              $variant_name,
+                                              $variant,
                                               $currentHash
                                             );
                                         }
