@@ -446,7 +446,8 @@ class ImageCompressorBuildTask extends BuildTask
                                               $image,
                                               $isSource,
                                               $variant,
-                                              $currentHash
+                                              $currentHash,
+                                              $newCompression
                                             );
                                         }
                                     }
@@ -525,7 +526,8 @@ class ImageCompressorBuildTask extends BuildTask
                                               $image,
                                               $isSource,
                                               $variant,
-                                              $currentHash
+                                              $currentHash,
+                                              $newCompression
                                             );
                                         }
                                     }
@@ -604,7 +606,8 @@ class ImageCompressorBuildTask extends BuildTask
                                               $image,
                                               $isSource,
                                               $variant,
-                                              $currentHash
+                                              $currentHash,
+                                              $newCompression
                                             );
                                         }
                                     }
