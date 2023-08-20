@@ -169,14 +169,13 @@ class Compressor
               // dd($ShortPixelResponse);
             if (!isset($ShortPixelResponse))
             {
-                continue;
+                return;
             }
 
             if (count($ShortPixelResponse->pending))
             {
                 // skip unfull request that is pending
-                echo 'pending';
-                continue;
+                return 'pending';
             }
 
             if (
