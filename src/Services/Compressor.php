@@ -24,7 +24,7 @@ class Compressor
         $this->setLimits();
     }
 
-    public static function init($options)
+    public static function init()
     {
         return new static();
     }
@@ -56,7 +56,7 @@ class Compressor
     public function shortpixel($image)
     {
         $spLossy = $this->options['lossy'];
-        $spConvertto = $this->options['+webp|+avif'];
+        $spConvertto = $this->options['convertto'];
 
         $store = Injector::inst()->get(AssetStore::class);
         // $getID = new ReflectionMethod(FlysystemAssetStore::class, 'getFileID');
@@ -490,8 +490,8 @@ class Compressor
         // ! the lossless return same as lossy, so we ignore it here
 
         $this->client = new ShortPixel();
-        $this->client->clientsetKey(Environment::getEnv('SHORTPIXEL_API_KEY'));
-        $this->client->clientsetOptions([
+        $this->client->setKey(Environment::getEnv('SHORTPIXEL_API_KEY'));
+        $this->client->setOptions([
           'lossy' => $this->options['lossy'] == 'lossy' ? 1 : 2, // 1 - lossy, 2 - glossy, 0 - lossless
           'convertto' => $this->options['convertto'],
           'notify_me' => null,
