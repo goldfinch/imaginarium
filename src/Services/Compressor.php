@@ -4,8 +4,8 @@ namespace Goldfinch\Imaginarium\Services;
 
 use ReflectionMethod;
 use ShortPixel\ShortPixel;
-use App\FlysystemAssetStore;
-use App\Models\CompressedImage;
+use Goldfinch\Imaginarium\FlysystemAssetStore;
+use Goldfinch\Imaginarium\Models\CompressedImage;
 use ShortPixel\AccountException;
 use function ShortPixel\fromUrls;
 use function ShortPixel\fromFiles;
