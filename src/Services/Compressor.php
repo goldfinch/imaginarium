@@ -8,8 +8,10 @@ use App\FlysystemAssetStore;
 use App\Models\CompressedImage;
 use ShortPixel\AccountException;
 use function ShortPixel\fromUrls;
+use function ShortPixel\fromFiles;
 use SilverStripe\Control\Director;
 use SilverStripe\Core\Environment;
+use SilverStripe\Core\Config\Config;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Storage\AssetStore;
 
@@ -71,6 +73,7 @@ class Compressor
 
         // only published images
         // dd($image->getUrl());
+
         if ($image->canViewStage() && $image->getUrl())
         {
             $filepath = pathinfo($image->getUrl(), PATHINFO_DIRNAME);
@@ -101,6 +104,7 @@ class Compressor
             if (count($missedSourceCompressions))
             {
                 $urlsToCompress[] = [
+                  'path' => Director::baseFolder() . '/public' . $image->getUrl(),
                   'url' => $image->getUrl(),
                   'extension' => $image->getExtension(),
                   'filename' => current(explode('.', $image->getFilename())),
@@ -119,6 +123,7 @@ class Compressor
                 if (count($missedCompressions))
                 {
                     $urlsToCompress[] = [
+                      'path' => Director::baseFolder() . '/public' . $variantUrl,
                       'url' => $variantUrl,
                       'extension' => $extension,
                       'filename' => $filename,
@@ -137,20 +142,109 @@ class Compressor
             {
                 try
                 {
-                    if (!isset($_SESSION['shortpixel-test']))
+                    // recall request
+                    if ($image->PendingData && $image->PendingData() && !empty($image->PendingData()))
                     {
-                        $ShortPixelResponse = fromUrls($urlsToCompress->pluck('url')->all())->toBuffers();
-                        $_SESSION['shortpixel-test'] = serialize($ShortPixelResponse);
+                        $pendingData = $image->PendingData();
+                        $allCurrent = $urlsToCompress->pluck('hash')->all();
+
+                        $pendingsToCompress = [];
+
+                        foreach($allCurrent as $hash)
+                        {
+                            if (isset($pendingData[$hash]))
+                            {
+                                $pendingsToCompress[] = $pendingData[$hash];
+                            }
+                        }
+
+                        // ! return false if pendings returns 0 which shouldn't happen, see later if we need this condition
+                        if (empty($pendingsToCompress))
+                        {
+                            return false;
+                        }
+
+                        if (!isset($_SESSION['shortpixel-test']))
+                        {
+                            $ShortPixelResponse = fromUrls($pendingsToCompress)->toBuffers();
+                        }
+                        else
+                        {
+                            $ShortPixelResponse = unserialize($_SESSION['shortpixel-test']);
+                        }
                     }
                     else
                     {
-                        $ShortPixelResponse = unserialize($_SESSION['shortpixel-test']);
+                        if (!isset($_SESSION['shortpixel-test']))
+                        {
+                            // dd($urlsToCompress->pluck('path')->all());
+
+                            // if (class_exists(\SilverStripe\S3\Adapter\PublicAdapter::class))
+                            if (substr($urlsToCompress->first()['url'], 0, 4) == 'http')
+                            {
+                                $ShortPixelResponse = fromUrls($urlsToCompress->pluck('url')->all())->toBuffers();
+                            }
+                            else
+                            {
+                                $ShortPixelResponse = fromFiles($urlsToCompress->pluck('path')->all())->toBuffers();
+                            }
+                        }
+                        else
+                        {
+                            $ShortPixelResponse = unserialize($_SESSION['shortpixel-test']);
+                        }
                     }
+
+                    $_SESSION['shortpixel-test'] = serialize($ShortPixelResponse);
+
                 } catch (\ShortPixel\AccountException $e) {
                     dd($e->getMessage());
                 }
             }
+
+            if (!isset($ShortPixelResponse))
+            {
+                return;
+            }
+
             // dd($ShortPixelResponse);
+
+            // Check if Status=1 (Message='Image scheduled for processing')
+            // If so, save the link for recall
+
+            if ($ShortPixelResponse->status['code'] == 1)
+            {
+                $files = $urlsToCompress->pluck('path')->all();
+
+                // dd($files);
+
+                $PendingData = $image->PendingData();
+
+                foreach ($ShortPixelResponse->pending as $item)
+                {
+                    if (property_exists($item, 'Key'))
+                    {
+                        $k = (int) str_replace('file', '', $item->Key) - 1;
+                        $replacedItem = $urlsToCompress[$k];
+                        // $replacedItem['pending'] = $item->OriginalURL;
+                        // $urlsToCompress = $urlsToCompress->replace([$k => $replacedItem]);
+                        // $image->PendingData = [
+                        //   'hash' => $replacedItem['hash'],
+                        //   'pending_url' => $item->OriginalURL
+                        // ];
+
+                        $PendingData[$replacedItem['hash']] = $item->OriginalURL;
+                    }
+                }
+
+                $image->PendingData = json_encode($PendingData);
+                $image->write();
+
+                // Save pending url with current image into the session
+                // $_SESSION['ImageCompressorPendings'][] = [$image, $urlsToCompress];
+            }
+
+            // dd($urlsToCompress);
 
             // $currentVariant = $urlsToCompress->where('url', $variantUrl)->first();
 
@@ -166,17 +260,17 @@ class Compressor
             // dd(collect($currentVariant['compressions'])->reject(function ($item) {
             //     return strpos($item, 'origin') === false;
             // })->count());
-              // dd($ShortPixelResponse);
-            if (!isset($ShortPixelResponse))
-            {
-                return;
-            }
 
-            if (count($ShortPixelResponse->pending))
-            {
-                // skip unfull request that is pending
-                return 'pending';
-            }
+            // dd($ShortPixelResponse);
+
+            // dd($ShortPixelResponse);
+
+            // commented out : otherwise 'succeeded' will be escaped (that could have data to proceed)
+            // if (count($ShortPixelResponse->pending))
+            // {
+            //     // skip unfull request that is pending
+            //     return 'pending';
+            // }
 
             if (
               property_exists($ShortPixelResponse, 'succeeded') &&
@@ -206,8 +300,26 @@ class Compressor
                             $isVariant = true;
                         }
 
-                        $currentVariant = $urlsToCompress->where('url', $item->OriginalURL)->first();
+                        // dd(CompressedImage::getImageSha1());
+                        if (substr($urlsToCompress->first()['url'], 0, 4) == 'http')
+                        {
+                            $currentVariant = $urlsToCompress->where('url', $item->OriginalURL)->first();
+                        }
+                        else
+                        {
+                            $currentVariant = $urlsToCompress->where('hash', sha1(file_get_contents($item->OriginalURL)))->first();
+                        }
+
                         // dd(currentVariant);
+                        // dd($image->manipulatedData(),$image->pendingData(), $urlsToCompress,$item);
+                        // dd($currentVariant);
+                        // dd($currentVariant, $item->OriginalURL, $item, $urlsToCompress, sha1(file_get_contents($item->OriginalURL)));
+
+                        // ! need to check why it returend null (image should be there), or perhaps it's a dev calls messed it up, just in case for further testings - continue
+                        if (!$currentVariant)
+                        {
+                            continue;
+                        }
 
                         $originCompressions = collect($currentVariant['compressions'])->reject(function ($item) {
                             return strpos($item, 'origin') === false;
@@ -461,8 +573,24 @@ class Compressor
                                 }
                             }
                         }
+
+                        // remove from pendings (if exists)
+                        if ($image->PendingData && $image->PendingData() && !empty($image->PendingData()))
+                        {
+                            $PendingData = $image->PendingData();
+
+                            if (isset($pendingData[$currentVariant['hash']]))
+                            {
+                                unset($pendingData[$currentVariant['hash']]);
+
+                                $image->PendingData = json_encode($PendingData);
+                                $image->write();
+                            }
+                        }
                     }
                 }
+
+                return true;
             }
         }
     }

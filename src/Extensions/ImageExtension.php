@@ -11,6 +11,7 @@ class ImageExtension extends Extension
 {
     private static $db = [
         'Optimized' => 'Boolean',
+        'PendingData' => JSONText::class,
         'ManipulatedData' => JSONText::class,
     ];
 
@@ -19,6 +20,11 @@ class ImageExtension extends Extension
     public function ManipulatedData()
     {
         return $this->owner->dbObject('ManipulatedData')->getStoreAsArray();
+    }
+
+    public function PendingData()
+    {
+        return $this->owner->dbObject('PendingData')->getStoreAsArray();
     }
 
     public function LazyFocusFill(int $width, int $height)

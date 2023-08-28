@@ -36,6 +36,31 @@ class ImageCompressorBuildTask extends BuildTask
             {
                 $compressor->run($image);
             }
+
+            // recall pendings
+            // if (isset($_SESSION['ImageCompressorPendings']))
+            // {
+            //     $pendings = $_SESSION['ImageCompressorPendings'];
+
+            //     foreach($pendings as $item)
+            //     {
+            //         $compressor->run($item[0], $item[1]);
+            //     }
+
+            //     // $calls = 0;
+
+            //     // do
+            //     // {
+            //     //     $calls++;
+
+            //     //     // escape infinit loop
+            //     //     if ($calls > 50)
+            //     //     {
+            //     //         break;
+            //     //     }
+            //     // }
+            //     // while(count($pendings));
+            // }
         }
 
         // echo 'Variants: ' . $imageVariantOptimized;
