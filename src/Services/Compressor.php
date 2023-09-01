@@ -4,8 +4,6 @@ namespace Goldfinch\Imaginarium\Services;
 
 use ReflectionMethod;
 use ShortPixel\ShortPixel;
-use Goldfinch\Imaginarium\FlysystemAssetStore;
-use Goldfinch\Imaginarium\Models\CompressedImage;
 use ShortPixel\AccountException;
 use function ShortPixel\fromUrls;
 use function ShortPixel\fromFiles;
@@ -14,6 +12,10 @@ use SilverStripe\Core\Environment;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Storage\AssetStore;
+use Goldfinch\Imaginarium\FlysystemAssetStore;
+use Goldfinch\Imaginarium\Models\CompressedImage;
+use SilverStripe\EventDispatcher\Symfony\Backend;
+use SilverStripe\Assets\Image_Backend;
 
 class Compressor
 {
@@ -59,6 +61,42 @@ class Compressor
     public function shortpixel($imageCompression)
     {
         $set = $imageCompression->compressionSet();
+        $object = $set['object'];
+
+        $compresedImageLink = 'https://silverstripe-starter.lh/assets/a4ef1e29fb3a36b98d4666db49079465-lossy.jpeg';
+
+        $image = $object->Image();
+        $name = $image->variantName($object->Method, $object->Width, $object->Height, 'SP-lossy');
+
+        // dd($object->parsedFileData());
+        // dd($name);
+
+        $backend = new \SilverStripe\Assets\InterventionBackend;
+        $arrContextOptions=array(
+          "ssl"=>array(
+              "verify_peer"=>false,
+              "verify_peer_name"=>false,
+          ),
+        );
+        $resource = $backend->getImageManager()->make(file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions)));
+        // dd($resource);
+        $imageBackend = $image->getImageBackend();
+        // dd($imageBackend);
+        $imageBackend->setImageResource($resource);
+
+        dd($imageBackend);
+
+
+        $result = $object->Image()->manipulateImage($name, function (Image_Backend $backend) use ($compresedImageLink) {
+            // $backend->loadFrom($compresedImageLink);
+
+            return $backend;
+        });
+
+        dd($result);
+
+        // ----
+        $set = $imageCompression->compressionSet();
 
         $spLossy = $this->options['lossy'];
         $spConvertto = $this->options['convertto'];
@@ -69,13 +107,21 @@ class Compressor
         // dd($parsedFileData['origin']);
 
         // $ShortPixelResponse = fromUrls([])->toBuffers();
-        $ShortPixelResponse = fromFiles([$parsedFileData['origin']])->toBuffers();
+        if ($imageCompression->PendingURL)
+        {
+            $ShortPixelResponse = fromUrls([$imageCompression->PendingURL])->toBuffers();
+        }
+        else
+        {
+            $ShortPixelResponse = fromFiles([$parsedFileData['origin']])->toBuffers();
+        }
 
         if ($ShortPixelResponse->status['code'] === 1)
         {
             if (count($ShortPixelResponse->pending))
             {
                 $imageCompression->PendingURL = $ShortPixelResponse->pending[0]->OriginalURL;
+                $imageCompression->write();
             }
         }
         else if ($ShortPixelResponse->status['code'] === 2)
@@ -89,7 +135,8 @@ class Compressor
         // $ShortPixelResponse->failed;
         // $ShortPixelResponse->same;
 
-        dd($ShortPixelResponse);
+        // https://silverstripe-starter.lh/assets/a4ef1e29fb3a36b98d4666db49079465-lossy.jpeg
+        // dd($ShortPixelResponse->succeeded[0]->LossyURL);
     }
 
     public function __shortpixel($image)
