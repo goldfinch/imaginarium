@@ -447,10 +447,12 @@ class FlysystemAssetStore extends SS_FlysystemAssetStore
         foreach ($strategy->findVariants($parsedFileID, $fs) as $variant) {
             $origin = $variant->getFileID();
             $ex = explode('.', $origin);
+            // dd($parsedFileID, File::get(),$variant, $variant->getFileID());
 
-            $image = File::get()
-                ->filter(['FileFilename' => $parsedFileID->getFilename()])
-                ->first();
+            // $image = File::get()
+            //     ->filter(['FileFilename' => $parsedFileID->getFilename()])
+            //     ->first();
+
             // dd(
             //     $image,
             //     $parsedFileID->getFilename(),
@@ -459,18 +461,24 @@ class FlysystemAssetStore extends SS_FlysystemAssetStore
             //     $strategy,
             // );
 
-            // $compressedRecords = CompressedImage::get()->filter([
-            //   'ImageID' => $image->ID()
-            // ]);
+            $compressedRecords = CompressedImage::get()->filter([
+              'Source' => $parsedFileID->getHash()
+            ]);
+            // dd($compressedRecords);
 
-            // foreach($compressedRecords as $record)
-            // {
-            //     if (substr($record->Filename, -5) == '.avif' || substr($record->Filename, -5) == '.webp')
-            //     {
-            //         $fs->delete($record->Filename);
-            //     }
-            // }
+            foreach($compressedRecords as $record)
+            {
+                // the image object should be removed already, just to make sure we only remove files of removed images
+                if (!$record->Image())
+                {
+                    if (substr($record->Filename, -5) == '.avif' || substr($record->Filename, -5) == '.webp')
+                    {
+                        $fs->delete($record->Filename);
+                    }
+                }
+            }
 
+            // although the above should clean up remaining compressions, the below check might be needed for s3
             $avif = $ex[0] . '.avif';
             $webp = $ex[0] . '.webp';
 

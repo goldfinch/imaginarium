@@ -1,6 +1,6 @@
 <?php
 
-namespace Goldfinch\Imaginarium\Services;
+namespace Goldfinch\Imaginarium\Services\Compressor;
 
 use ReflectionMethod;
 use ShortPixel\ShortPixel;
@@ -134,39 +134,46 @@ class Compressor
                     ];
                 }
             }
-            // dd($urlsToCompress);
+            // dd($image->PendingData());
             $urlsToCompress = collect($urlsToCompress);
             $_SESSION['shortpixel-test'] = null;
             // DEBUGGING
-            if ($urlsToCompress->count())
+
+            $pendingDataState = $image->PendingData && $image->PendingData() && !empty($image->PendingData());
+
+            if ($urlsToCompress->count() || $pendingDataState)
             {
                 try
                 {
                     // recall request
-                    if ($image->PendingData && $image->PendingData() && !empty($image->PendingData()))
+                    if ($pendingDataState)
                     {
                         $pendingData = $image->PendingData();
-                        $allCurrent = $urlsToCompress->pluck('hash')->all();
 
-                        $pendingsToCompress = [];
+                        // $allCurrent = $urlsToCompress->pluck('hash')->all();
 
-                        foreach($allCurrent as $hash)
-                        {
-                            if (isset($pendingData[$hash]))
-                            {
-                                $pendingsToCompress[] = $pendingData[$hash];
-                            }
-                        }
+                        // $pendingsToCompress = [];
 
-                        // ! return false if pendings returns 0 which shouldn't happen, see later if we need this condition
-                        if (empty($pendingsToCompress))
-                        {
-                            return false;
-                        }
+                        // foreach($allCurrent as $hash)
+                        // {
+                        //     if (isset($pendingData[$hash]))
+                        //     {
+                        //         $pendingsToCompress[] = $pendingData[$hash];
+                        //     }
+                        // }
+
+                        // // dd($allCurrent, $pendingsToCompress);
+
+                        // // ! return false if pendings returns 0 which shouldn't happen, see later if we need this condition
+                        // if (empty($pendingsToCompress))
+                        // {
+                        //     return false;
+                        // }
 
                         if (!isset($_SESSION['shortpixel-test']))
                         {
-                            $ShortPixelResponse = fromUrls($pendingsToCompress)->toBuffers();
+                            $ShortPixelResponse = fromUrls(array_values($pendingData))->toBuffers();
+                            // $ShortPixelResponse = fromUrls($pendingsToCompress)->toBuffers();
                         }
                         else
                         {
@@ -239,6 +246,7 @@ class Compressor
 
                 $image->PendingData = json_encode($PendingData);
                 $image->write();
+                // $image->publishRecursive();
 
                 // Save pending url with current image into the session
                 // $_SESSION['ImageCompressorPendings'][] = [$image, $urlsToCompress];
@@ -282,7 +290,7 @@ class Compressor
                 $image_filename = $image->File->getFilename();
 
                 // dd($urlsToCompress , $ShortPixelResponse->succeeded);
-
+                // dd($ShortPixelResponse->succeeded);
                 foreach ($ShortPixelResponse->succeeded as $item)
                 {
                     if ($item->Status->Message == 'Success')
@@ -393,6 +401,7 @@ class Compressor
                                     $newCompression->Parent = $currentVariant['hash'];
                                     $newCompression->Source = $image->getHash();
                                     $newCompression->write();
+                                    // $newCompression->publishRecursive();
 
                                     // var_dump($variant_name, $currentVariant['filename'], $image_filename, 'origin', $item->OriginalURL, json_encode($currentVariant));
 
@@ -473,6 +482,7 @@ class Compressor
                                     $newCompression->Parent = $currentVariant['hash'];
                                     $newCompression->Source = $image->getHash();
                                     $newCompression->write();
+                                    // $newCompression->publishRecursive();
 
                                     // var_dump($variant_name, $currentVariant['filename'], $image_filename, 'webp', $item->OriginalURL, json_encode($currentVariant));
 
@@ -553,6 +563,7 @@ class Compressor
                                     $newCompression->Parent = $currentVariant['hash'];
                                     $newCompression->Source = $image->getHash();
                                     $newCompression->write();
+                                    // $newCompression->publishRecursive();
 
                                     // var_dump($variant_name, $currentVariant['filename'], $image_filename, 'avif', $item->OriginalURL, json_encode($currentVariant));
 
@@ -574,17 +585,22 @@ class Compressor
                             }
                         }
 
+                        $image->FileVariant = null;
+                        $image->write();
+                        // $image->publishRecursive();
+
                         // remove from pendings (if exists)
                         if ($image->PendingData && $image->PendingData() && !empty($image->PendingData()))
                         {
                             $PendingData = $image->PendingData();
 
-                            if (isset($pendingData[$currentVariant['hash']]))
+                            if (isset($PendingData[$currentVariant['hash']]))
                             {
-                                unset($pendingData[$currentVariant['hash']]);
+                                unset($PendingData[$currentVariant['hash']]);
 
                                 $image->PendingData = json_encode($PendingData);
                                 $image->write();
+                                // $image->publishRecursive();
                             }
                         }
                     }

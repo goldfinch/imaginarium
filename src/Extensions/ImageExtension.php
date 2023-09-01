@@ -6,6 +6,7 @@ use SilverStripe\ORM\ArrayList;
 use SilverStripe\View\ArrayData;
 use SilverStripe\Core\Extension;
 use PhpTek\JSONText\ORM\FieldType\JSONText;
+use Goldfinch\Imaginarium\Models\CompressedImage;
 
 class ImageExtension extends Extension
 {
@@ -13,6 +14,10 @@ class ImageExtension extends Extension
         'Optimized' => 'Boolean',
         'PendingData' => JSONText::class,
         'ManipulatedData' => JSONText::class,
+    ];
+
+    private static $has_many = [
+        'Compressions' => CompressedImage::class,
     ];
 
     private $RIOptions = null;
