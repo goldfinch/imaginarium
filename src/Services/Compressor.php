@@ -1,6 +1,6 @@
 <?php
 
-namespace Goldfinch\Imaginarium\Services\Compressor;
+namespace Goldfinch\Imaginarium\Services;
 
 use ReflectionMethod;
 use ShortPixel\ShortPixel;
