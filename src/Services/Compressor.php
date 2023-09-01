@@ -52,10 +52,47 @@ class Compressor
         if ($this->compressor == 'shortpixel')
         {
             $this->shortpixel($image);
+            // $this->shortpixel($image);
         }
     }
 
-    public function shortpixel($image)
+    public function shortpixel($imageCompression)
+    {
+        $set = $imageCompression->compressionSet();
+
+        $spLossy = $this->options['lossy'];
+        $spConvertto = $this->options['convertto'];
+
+        $object = $set['object'];
+        $parsedFileData = $object->parsedFileData();
+
+        // dd($parsedFileData['origin']);
+
+        // $ShortPixelResponse = fromUrls([])->toBuffers();
+        $ShortPixelResponse = fromFiles([$parsedFileData['origin']])->toBuffers();
+
+        if ($ShortPixelResponse->status['code'] === 1)
+        {
+            if (count($ShortPixelResponse->pending))
+            {
+                $imageCompression->PendingURL = $ShortPixelResponse->pending[0]->OriginalURL;
+            }
+        }
+        else if ($ShortPixelResponse->status['code'] === 2)
+        {
+            if (count($ShortPixelResponse->succeeded))
+            {
+                //
+            }
+        }
+
+        // $ShortPixelResponse->failed;
+        // $ShortPixelResponse->same;
+
+        dd($ShortPixelResponse);
+    }
+
+    public function __shortpixel($image)
     {
         $spLossy = $this->options['lossy'];
         $spConvertto = $this->options['convertto'];
