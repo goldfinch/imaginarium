@@ -32,8 +32,8 @@ SilverStripe\Core\Injector\Injector:
 #       webp: true
 #       avif: true
   # Define our SS asset backend
-  SilverStripe\Assets\Storage\AssetStore:
-    class: Goldfinch\Imaginarium\FlysystemAssetStore
+  # SilverStripe\Assets\Storage\AssetStore:
+    # class: Goldfinch\Imaginarium\FlysystemAssetStore
 
 # Goldfinch\Imaginarium\Models\CompressedImage:
 #   compression_rules:
