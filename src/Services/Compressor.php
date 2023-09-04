@@ -4,18 +4,20 @@ namespace Goldfinch\Imaginarium\Services;
 
 use ReflectionMethod;
 use ShortPixel\ShortPixel;
+use App\Models\ImageVariant;
+use SilverStripe\Assets\Image;
 use ShortPixel\AccountException;
 use function ShortPixel\fromUrls;
 use function ShortPixel\fromFiles;
 use SilverStripe\Control\Director;
 use SilverStripe\Core\Environment;
 use SilverStripe\Core\Config\Config;
+use SilverStripe\Assets\Image_Backend;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Storage\AssetStore;
 use Goldfinch\Imaginarium\FlysystemAssetStore;
 use Goldfinch\Imaginarium\Models\CompressedImage;
 use SilverStripe\EventDispatcher\Symfony\Backend;
-use SilverStripe\Assets\Image_Backend;
 
 class Compressor
 {
@@ -63,12 +65,14 @@ class Compressor
         $set = $imageCompression->compressionSet();
         $object = $set['object'];
 
+        // TODO: pass 1px image?
+        // $compresedImageLink = 'https://silverstripe-starter.lh/assets/pixel.jpg';
         $compresedImageLink = 'https://silverstripe-starter.lh/assets/a4ef1e29fb3a36b98d4666db49079465-lossy.jpeg';
 
         $image = $object->Image();
         $name = $image->variantName($object->Method, $object->Width, $object->Height, 'SP-lossy');
 
-        // dd($object->parsedFileData());
+        // dd(ImageVariant::get()->first()->parsedFileData()['filesys']['adapter']->write());
         // dd($name);
 
         $backend = new \SilverStripe\Assets\InterventionBackend;
@@ -78,22 +82,110 @@ class Compressor
               "verify_peer_name"=>false,
           ),
         );
-        $resource = $backend->getImageManager()->make(file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions)));
+
+        // $tinypx = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQDAwQEBAQFBQQFBwsHBwYGBw4KCggLEA4RERAOEA8SFBoWEhMYEw8QFh8XGBsbHR0dERYgIh8cIhocHRz/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8Afz//2Q==';
+
+        // $imagecontent = base64_decode($tinypx);
+        // file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions))
+
+        // $resource = $backend->getImageManager()->make($imagecontent);
+        // dd($backend->getImageManager());
         // dd($resource);
-        $imageBackend = $image->getImageBackend();
+        // $imageBackend = $image->getImageBackend();
+        // $imageBackend->setImageResource($resource);
+        // $store = Injector::inst()->get(AssetStore::class);
+        // exit;
         // dd($imageBackend);
-        $imageBackend->setImageResource($resource);
 
-        dd($imageBackend);
+        // SilverStripe\Assets\InterventionBackend
+        // $imageBackend->writeToStore(
+        //     $store,
+        //     $filename,
+        //     $hash,
+        //     $variant,
+        //     ['conflict' => AssetStore::CONFLICT_USE_EXISTING]
+        // );
+
+        // inside writeToStroe > $resource (Intervention\Image\Image)
+
+        // $result = $image->File->setFromString(
+        //   $imagecontent,
+        //   $name.'.jpg', $image->getHash(), $name, []
+        // );
+        // // $result = $this->File->setFromLocalFile($path, $name, null, null, $config);
+
+        // dd($result);
 
 
-        $result = $object->Image()->manipulateImage($name, function (Image_Backend $backend) use ($compresedImageLink) {
+        // $imagecontent = file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions));
+        // $imagecontentEncode = base64_encode($imagecontent);
+        // var_dump($imagecontent);exit;
+        // @file_put_contents('/Users/art/Code/modules/starter/public/assets/3216x2136__FitMaxWzYwMCwzMDAsIlNQLWxvc3N5Il0.jpg', $imagecontent, 2);
+
+        // exit;
+
+        $result = $object->Image()->manipulateImage($name, function (Image_Backend $backend) {
+          // exit;
+            // dd($backend->getImageResource()->save('/Users/art/Code/modules/starter/public/assets/3216x2136__FitMaxWzYwMCwzMDAsIlNQLWxvc3N5Il0.jpg', 100));
             // $backend->loadFrom($compresedImageLink);
+            // $backend->setImageResource($resource);
+            // $backend->getImageResource()->setEncoded($imagecontent);
+            // $backend->setImageResource($resource)->setQuality(100);
 
-            return $backend;
+
+
+
+            //   $tuple = $result->writeToStore(
+            //     $store,
+            //     $filename,
+            //     $hash,
+            //     $variant,
+            //     ['conflict' => AssetStore::CONFLICT_USE_EXISTING]
+            // );
+            // return;
+
+
+
+              /**
+               * Need to find out if we can null this step/skip but get parsedFileData below. Currently if we do not return $backend, parsedFileData will be null.
+               */
+            return $backend->setQuality(1);
         });
 
-        dd($result);
+
+        $currentVariant = ImageVariant::get()->filter('prefix', $result->getVariant())->first();
+
+        if ($currentVariant)
+        {
+          $parsed = $currentVariant->parsedFileData();
+
+          $imagecontent = file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions));
+
+          if ($set['filesystem'] == 's3')
+          {
+              // s3
+              // $cfg = $parsed['filesys']['public']->prepareConfig([]);
+              // dd($parsed['filesys']['adapter']);
+              // $parsed['filesys']['public']->putStream($parsed['getFileID'], $imagecontent);
+              $cfg = $parsed['filesys']['public']->getConfig();
+              $parsed['filesys']['adapter']->write($parsed['getFileID'], $imagecontent, $cfg);
+          }
+          else
+          {
+              // local
+              @file_put_contents($parsed['origin'], $imagecontent, 2);
+          }
+        }
+        // dd($parsed['origin']);
+        exit;
+
+
+
+
+
+
+
+
 
         // ----
         $set = $imageCompression->compressionSet();
