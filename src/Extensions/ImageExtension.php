@@ -11,13 +11,13 @@ use Goldfinch\Imaginarium\Models\CompressedImage;
 class ImageExtension extends Extension
 {
     private static $db = [
-        'Optimized' => 'Boolean',
-        'PendingData' => JSONText::class,
-        'ManipulatedData' => JSONText::class,
+        // 'Optimized' => 'Boolean',
+        // 'PendingData' => JSONText::class,
+        // 'ManipulatedData' => JSONText::class,
     ];
 
     private static $has_many = [
-        'Compressions' => CompressedImage::class,
+        // 'Compressions' => CompressedImage::class,
     ];
 
     private $RIOptions = null;
