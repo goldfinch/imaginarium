@@ -25,6 +25,69 @@ class Compressor
     protected $compressor;
     protected $options;
 
+    public static function compress($stackItem)
+    {
+        $sources = collect($stackItem['assets'])->pluck('source')->all();
+
+        if ($stackItem['filesystem'] == 's3')
+        {
+            if ($stackItem['compressor'] == 'splossy' || $stackItem['compressor'] == 'spglossy')
+            {
+                $response = fromLinks($sources)->toBuffers();
+            }
+            else if ($stackItem['compressor'] == 'tiny')
+            {
+                //
+            }
+        }
+        else if ($stackItem['filesystem'] == 'local')
+        {
+            if ($stackItem['compressor'] == 'splossy' || $stackItem['compressor'] == 'spglossy')
+            {
+                $response = fromFiles($sources)->toBuffers();
+            }
+            else if ($stackItem['compressor'] == 'tiny')
+            {
+                //
+            }
+        }
+
+        // if ($response->status['code'] === 1)
+        // {
+        if (count($response->pending))
+        {
+            foreach($response->pending as $pending)
+            {
+                if ($pending->Status->Code == 1)
+                {
+                    $key = ((int) str_replace('file', '', $pending->Key)) - 1;
+                    // dd($pending, $key, $waitingCompressions);
+                    $current = $waitingCompressions[$key];
+                    $compressionObject = $current['compression'];
+                    // dd(22, $compressionObject, $pending, $pending->OriginalURL);
+                    $compressionObject->PendingURL = $pending->OriginalURL;
+                    $compressionObject->State = 'pending';
+                    $compressionObject->write();
+                    // dd($compressionObject)
+                }
+            }
+        }
+        // }
+        // else if ($response->status['code'] === 2)
+        // {
+        if (count($response->succeeded))
+        {
+            dd('succeeded-wait', $response);
+
+            foreach($response->succeeded as $succeeded)
+            {
+                // $imageCompression->PendingURL = $response->pending[0]->OriginalURL;
+                // $imageCompression->write();
+            }
+        }
+        // }
+    }
+
     public function __construct()
     {
         $this->setLimits();
