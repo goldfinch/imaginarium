@@ -15,6 +15,7 @@ use SilverStripe\Core\Config\Config;
 use SilverStripe\Assets\Image_Backend;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Storage\AssetStore;
+use SilverStripe\Assets\InterventionBackend;
 use Goldfinch\Imaginarium\FlysystemAssetStore;
 use Goldfinch\Imaginarium\Models\CompressedImage;
 use SilverStripe\EventDispatcher\Symfony\Backend;
@@ -25,15 +26,326 @@ class Compressor
     protected $compressor;
     protected $options;
 
-    public static function compress($stackItem)
+    public static function storeCompression($record)
     {
-        $sources = collect($stackItem['assets'])->pluck('source')->all();
+        // Presets
+        $set = $record->compressionSet();
+        $object = $set['object'];
+        $data = $record->CompresseddData();
+
+        if (method_exists($object, 'variantName')) // if ($set['type'] == 'variant')
+        {
+            $image = $object;//->Image();
+        }
+        else
+        {
+            $image = $object->Image();
+        }
+
+        $arrContextOptions = [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ],
+        ];
+
+        // Preparing links to save
+
+        $fetch = [];
+
+        // if ($set['type'] == 'origin')
+        // {
+        //     $fetch['spll'] = $data['LosslessURL'];
+        // }
+        // else if ($set['type'] == 'variant')
+        // {
+        //     //
+        // }
+
+        // * top notch AVIF but a bit sizy
+        $fetch['spllAVIF'] = $data['AVIFLosslessURL'];
+
+        if ($record->Type == 'splossy') // * golden middle
+        {
+            $fetch['splAVIF'] = $data['AVIFLossyURL'];
+            $fetch['splWebP'] = $data['WebPLossyURL'];
+        }
+        else if ($record->Type == 'spglossy') // * most optimized
+        {
+            $fetch['spgAVIF'] = $data['AVIFLossyURL'];
+            $fetch['spgWebP'] = $data['WebPLossyURL'];
+        }
+
+        // Condition: rewrite origin? if so, what type?
+
+        if ($record->ImageID) // $set['type'] == 'origin'
+        {
+            // TODO: this param should be dynamic (set in config)
+            $rewriteOrigin = 'lossless';
+
+            if ($rewriteOrigin)
+            {
+                if ($rewriteOrigin == 'lossless')
+                {
+                    $fetch['origin'] = $data['LosslessURL'];
+                }
+                else if ($record->Type == $rewriteOrigin)
+                {
+                    $fetch['origin'] = $data['LossyURL'];
+                }
+            }
+        }
+        else // Condition: rewrite variant? if so, what type?
+        {
+            // TODO: this param should be dynamic (set in config)
+            $rewriteVariant = 'spglossy';
+
+            if ($rewriteVariant)
+            {
+                if ($record->Type == $rewriteVariant)
+                {
+                    $fetch['origin'] = $data['LossyURL'];
+                }
+            }
+        }
+
+        foreach ($fetch as $key => $fetchLink)
+        {
+            if ($key == 'origin')
+            {
+                // rewrite origin
+
+                // check if not compressed already
+                if (!$object->OriginCompressed)
+                {
+                    if ($record->ImageID)
+                    {
+                        $parsed = $image->parsedFileData();
+                    }
+                    else
+                    {
+                        $parsed = $object->parsedFileData();
+                    }
+
+                    if ($set['filesystem'] == 's3')
+                    {
+                        $path = $parsed['getFileID'];
+                    }
+                    else
+                    {
+                        $path = $parsed['origin'];
+                    }
+
+                    // variant file / original file
+                    $imagecontent = file_get_contents($fetchLink, false, stream_context_create($arrContextOptions));
+
+                    if ($set['filesystem'] == 's3')
+                    {
+                        // S3
+                        $cfg = $parsed['filesys']['public']->getConfig();
+                        $parsed['filesys']['adapter']->write($path, $imagecontent, $cfg);
+                    }
+                    else
+                    {
+                        // Local
+                        @file_put_contents($path, $imagecontent, 2);
+                    }
+
+                    $object->OriginCompressed = 1;
+                    $object->write();
+
+                    if (method_exists($object, 'getHash'))
+                    {
+                        // update hash for the main original file
+                        // $object->FileHash =
+                    }
+                }
+            }
+            else
+            {
+                $name = $image->variantName($key, $object->Width, $object->Height); // $object->Method
+
+                $backend = new InterventionBackend;
+
+                // Preparing placeholder
+                $tinypx = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQDAwQEBAQFBQQFBwsHBwYGBw4KCggLEA4RERAOEA8SFBoWEhMYEw8QFh8XGBsbHR0dERYgIh8cIhocHRz/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8Afz//2Q==';
+                $imagecontent = base64_decode($tinypx);
+                $resource = $backend->getImageManager()->make($imagecontent);
+
+                // Creating placeholder
+                $result = $image->manipulateImage($name, function (Image_Backend $backend) use ($resource) {
+                    $backend->setImageResource($resource);//->setQuality(1);
+                    return $backend;//->setQuality(1);
+                });
+
+                // Do variant manipulations
+
+                $currentVariant = ImageVariant::get()->filter('Prefix', $result->getVariant())->first();
+
+                if ($currentVariant)
+                {
+                    $parsed = $currentVariant->parsedFileData();
+
+                    if ($set['filesystem'] == 's3')
+                    {
+                        $path = $parsed['getFileID'];
+                    }
+                    else
+                    {
+                        $path = $parsed['origin'];
+                    }
+
+                    // if ($parsed)
+                    // {
+                    $imagecontent = file_get_contents($fetchLink, false, stream_context_create($arrContextOptions));
+
+                    // Prepare new link with right extension
+                    $exp = explode($key, $path);
+                    $exp2 = explode('.', $exp[1]);
+                    $path = $exp[0] . $key . $exp2[0];
+
+                    if (strpos($key, 'WebP') !== false)
+                    {
+                        $path .= '.webp';
+                    }
+                    else if (strpos($key, 'AVIF') !== false)
+                    {
+                        $path .= '.avif';
+                    }
+
+                    if ($set['filesystem'] == 's3')
+                    {
+                        // s3
+
+                        // $cfg = $parsed['filesys']['public']->prepareConfig([]);
+                        // dd($parsed['filesys']['adapter']);
+                        // $parsed['filesys']['public']->putStream($parsed['getFileID'], $imagecontent);
+
+                        $cfg = $parsed['filesys']['public']->getConfig();
+                        $parsed['filesys']['adapter']->write($path, $imagecontent, $cfg);
+
+                        // removes placeholder image for new variant
+                        if ($path != $parsed['getFileID'])
+                        {
+                            // remove > $parsed['getFileID']
+                        }
+                    }
+                    else
+                    {
+                        // local
+                        @file_put_contents($path, $imagecontent, 2);
+
+                        // removes placeholder image for new variant
+                        if ($path != $parsed['origin'])
+                        {
+                            unlink($parsed['origin']);
+                        }
+                    }
+
+                    $currentVariant->CompressionID = $record->ID;
+                    $currentVariant->write();
+                    // }
+                }
+
+            }
+        }
+
+        $record->State = 'compressed';
+        $record->write();
+    }
+
+    public static function getStackForCompression($records)
+    {
+        $stack = collect();
+
+        foreach ($records as $compression)
+        {
+            $set = $compression->compressionSet();
+
+            if ($set['type'] == 'origin')
+            {
+                $image = $set['object'];
+            }
+            else if ($set['type'] == 'variant')
+            {
+                $image = $set['object']->Image();
+            }
+
+            $parsedFileData = $set['object']->parsedFileData();
+
+            $sysStack = $stack
+                ->where('filesystem', $set['filesystem'])
+                ->where('compressor', $compression->Type);
+
+            if (!$sysStack->first())
+            {
+                $stack->push([
+                    'filesystem' => $set['filesystem'],
+                    'compressor' => $compression->Type,
+                    'assets' => [],
+                ]);
+            }
+
+            $stack = $stack->map(function($item, $key) use ($set, $compression, $parsedFileData) {
+
+                if ($item['filesystem'] == $set['filesystem'] && $item['compressor'] == $compression->Type)
+                {
+                    array_push($item['assets'], [
+                      'compression' => $compression,
+                      'source' => $parsedFileData['origin'],
+                      'pendingURL' => $compression->PendingURL,
+                    ]);
+                }
+
+                return $item;
+            });
+        }
+
+        return $stack;
+    }
+
+    protected static function getShortPixel($options)
+    {
+        $client = new ShortPixel();
+        $client->setKey(Environment::getEnv('SHORTPIXEL_API_KEY'));
+        $client->setOptions([
+          'lossy' => $options['lossy'] == 'splossy' ? 1 : 2, // 1 - lossy, 2 - glossy, 0 - lossless
+          'convertto' => $options['convertto'],
+          'notify_me' => null,
+          'wait' => 300,
+          'total_wait' => 300,
+          // 'returndatalist' => isset($options['returndatalist']) ? $options['returndatalist'] : null,
+        ]);
+
+        return $client;
+    }
+
+    public static function compress($stackItem, $compressionType)
+    {
+        if ($compressionType == 'pending')
+        {
+            $sources = collect($stackItem['assets'])->pluck('pendingURL')->all();
+            // dump($sources);
+        }
+        else if ($compressionType == 'wait')
+        {
+            $sources = collect($stackItem['assets'])->pluck('source')->all();
+            // dump($sources);
+        }
+
+        if ($stackItem['compressor'] == 'splossy' || $stackItem['compressor'] == 'spglossy')
+        {
+            $client = self::getShortPixel([
+              'lossy' => $stackItem['compressor'],
+              'convertto' => '+webp|+avif',
+            ]);
+        }
 
         if ($stackItem['filesystem'] == 's3')
         {
             if ($stackItem['compressor'] == 'splossy' || $stackItem['compressor'] == 'spglossy')
             {
-                $response = fromLinks($sources)->toBuffers();
+                $response = fromUrls($sources)->toBuffers();
             }
             else if ($stackItem['compressor'] == 'tiny')
             {
@@ -44,13 +356,22 @@ class Compressor
         {
             if ($stackItem['compressor'] == 'splossy' || $stackItem['compressor'] == 'spglossy')
             {
-                $response = fromFiles($sources)->toBuffers();
+                if ($compressionType == 'pending')
+                {
+                    $response = fromUrls($sources)->toBuffers();
+                }
+                else if ($compressionType == 'wait')
+                {
+                    $response = fromFiles($sources)->toBuffers();
+                }
             }
             else if ($stackItem['compressor'] == 'tiny')
             {
                 //
             }
         }
+
+        // dump($response);
 
         // if ($response->status['code'] === 1)
         // {
@@ -61,14 +382,11 @@ class Compressor
                 if ($pending->Status->Code == 1)
                 {
                     $key = ((int) str_replace('file', '', $pending->Key)) - 1;
-                    // dd($pending, $key, $waitingCompressions);
-                    $current = $waitingCompressions[$key];
+                    $current = $stackItem['assets'][$key];
                     $compressionObject = $current['compression'];
-                    // dd(22, $compressionObject, $pending, $pending->OriginalURL);
                     $compressionObject->PendingURL = $pending->OriginalURL;
                     $compressionObject->State = 'pending';
                     $compressionObject->write();
-                    // dd($compressionObject)
                 }
             }
         }
@@ -77,15 +395,237 @@ class Compressor
         // {
         if (count($response->succeeded))
         {
-            dd('succeeded-wait', $response);
+            // dd('succeeded-wait', $response);
 
             foreach($response->succeeded as $succeeded)
             {
-                // $imageCompression->PendingURL = $response->pending[0]->OriginalURL;
-                // $imageCompression->write();
+                $compression = null;
+
+                foreach ($stackItem['assets'] as $asset)
+                {
+                    if ($asset['compression']->PendingURL == $succeeded->OriginalURL)
+                    {
+                        $compression = $asset['compression'];
+                        break;
+                    }
+                }
+
+                if ($compression)
+                {
+                    unset($succeeded->Buffer);
+                    // unset($succeeded->Status);
+
+                    $data = json_encode($succeeded);
+
+                    // $pendingCompression = $pendingCompressions->filter(function ($value, $key) use ($succeeded) {
+                    //     return $value['compression']->PendingURL == $succeeded->OriginalURL;
+                    // })->first();
+                    // $compression = $pendingCompression['compression'];
+
+                    $compression->State = 'processing';
+                    $compression->CompresseddData = $data;
+                    $compression->write();
+                }
             }
         }
         // }
+    }
+
+
+
+
+
+
+
+
+    public function shortpixelSaver($imageCompression, $compresedImageLink, $compressionKey)
+    {
+        $set = $imageCompression->compressionSet();
+        $object = $set['object'];
+        // dd($compresedImageLink);
+        // TODO: pass 1px image?
+        // $compresedImageLink = 'https://silverstripe-starter.lh/assets/pixel.jpg';
+        // $compresedImageLink = 'https://silverstripe-starter.lh/assets/a4ef1e29fb3a36b98d4666db49079465-lossy.jpeg';
+        // dd($object->Method, $object->Width, $object->Height);
+
+        if (method_exists($object, 'variantName'))
+        {
+            $image = $object;//->Image();
+        }
+        else
+        {
+            $image = $object->Image();
+        }
+
+        $name = $image->variantName($compressionKey, $object->Width, $object->Height); // $object->Method
+        // dd($name);
+        // dd(ImageVariant::get()->first()->parsedFileData()['filesys']['adapter']->write());
+        // dd($name);
+
+        $backend = new \SilverStripe\Assets\InterventionBackend;
+        $arrContextOptions=array(
+          "ssl"=>array(
+              "verify_peer"=>false,
+              "verify_peer_name"=>false,
+          ),
+        );
+
+        $tinypx = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQDAwQEBAQFBQQFBwsHBwYGBw4KCggLEA4RERAOEA8SFBoWEhMYEw8QFh8XGBsbHR0dERYgIh8cIhocHRz/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8Afz//2Q==';
+
+        $imagecontent = base64_decode($tinypx);
+        $resource = $backend->getImageManager()->make($imagecontent);
+
+
+        // $imagecontent = base64_decode($tinypx);
+        // file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions))
+
+
+
+
+
+
+
+
+        // dd($backend->getImageManager());
+        // dd($resource);
+        // $imageBackend = $image->getImageBackend();
+        // $imageBackend->setImageResource($resource);
+        // $store = Injector::inst()->get(AssetStore::class);
+        // exit;
+        // dd($imageBackend);
+
+        // SilverStripe\Assets\InterventionBackend
+        // $imageBackend->writeToStore(
+        //     $store,
+        //     $filename,
+        //     $hash,
+        //     $variant,
+        //     ['conflict' => AssetStore::CONFLICT_USE_EXISTING]
+        // );
+
+        // inside writeToStroe > $resource (Intervention\Image\Image)
+
+        // $result = $image->File->setFromString(
+        //   $imagecontent,
+        //   $name.'.jpg', $image->getHash(), $name, []
+        // );
+        // // $result = $this->File->setFromLocalFile($path, $name, null, null, $config);
+
+        // dd($result);
+
+
+        // $imagecontent = file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions));
+        // $imagecontentEncode = base64_encode($imagecontent);
+        // var_dump($imagecontent);exit;
+        // @file_put_contents('/Users/art/Code/modules/starter/public/assets/3216x2136__FitMaxWzYwMCwzMDAsIlNQLWxvc3N5Il0.jpg', $imagecontent, 2);
+
+        // exit;
+
+        // dd($name);
+
+        $result = $image->manipulateImage($name, function (Image_Backend $backend) use ($resource) {
+          // exit;
+            // dd($backend->getImageResource()->save('/Users/art/Code/modules/starter/public/assets/3216x2136__FitMaxWzYwMCwzMDAsIlNQLWxvc3N5Il0.jpg', 100));
+            // $backend->setImageResource($resource);
+            // $backend->getImageResource()->setEncoded($imagecontent);
+
+
+            // $backend->loadFrom($compresedImageLink);
+
+
+            $backend->setImageResource($resource);//->setQuality(1);
+
+
+
+
+            //   $tuple = $result->writeToStore(
+            //     $store,
+            //     $filename,
+            //     $hash,
+            //     $variant,
+            //     ['conflict' => AssetStore::CONFLICT_USE_EXISTING]
+            // );
+            // return;
+
+            // $imagecontent = base64_decode($tinypx);
+
+            // $backend->getImageManager()->make($imagecontent);
+
+              /**
+               * Need to find out if we can null this step/skip but get parsedFileData below. Currently if we do not return $backend, parsedFileData will be null.
+               */
+            return $backend;//->setQuality(1);
+        });
+
+        $currentVariant = ImageVariant::get()->filter('prefix', $result->getVariant())->first();
+
+        if ($currentVariant)
+        {
+            $parsed = $currentVariant->parsedFileData();
+
+            // if ($parsed)
+            // {
+                $imagecontent = file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions));
+
+
+                if ($set['filesystem'] == 's3')
+                {
+                    $path = $parsed['getFileID'];
+                }
+                else
+                {
+                    $path = $parsed['origin'];
+                }
+
+                if (strpos($path, '__SPWebP') !== false)
+                {
+                    $exp = explode('__SPWebP', $path);
+                    $exp2 = explode('.', $exp[1]);
+                    $path = $exp[0] . '__SPWebP' . $exp2[0] . '.webp';
+                }
+                else if (strpos($path, '__SPAVIF') !== false)
+                {
+                    $exp = explode('__SPAVIF', $path);
+                    $exp2 = explode('.', $exp[1]);
+                    $path = $exp[0] . '__SPAVIF' . $exp2[0] . '.avif';
+                }
+
+
+                if ($set['filesystem'] == 's3')
+                {
+                    // s3
+                    // $cfg = $parsed['filesys']['public']->prepareConfig([]);
+                    // dd($parsed['filesys']['adapter']);
+                    // $parsed['filesys']['public']->putStream($parsed['getFileID'], $imagecontent);
+                    $cfg = $parsed['filesys']['public']->getConfig();
+                    $parsed['filesys']['adapter']->write($path, $imagecontent, $cfg);
+
+                    // removes placeholder image for new variant
+                    if ($path != $parsed['getFileID'])
+                    {
+                        // remove > $parsed['getFileID']
+                    }
+                }
+                else
+                {
+                    // local
+                    @file_put_contents($path, $imagecontent, 2);
+
+                    // removes placeholder image for new variant
+                    if ($path != $parsed['origin'])
+                    {
+                        unlink($parsed['origin']);
+                    }
+                }
+
+                $currentVariant->CompressionID = $imageCompression->ID;
+                $currentVariant->write();
+
+                $imageCompression->State = 'compressed';
+                $imageCompression->write();
+            // }
+        }
+
     }
 
     public function __construct()
@@ -305,196 +845,6 @@ class Compressor
 
                 // dd('-');
             }
-        }
-
-    }
-
-    public function shortpixelSaver($imageCompression, $compresedImageLink, $compressionKey)
-    {
-        $set = $imageCompression->compressionSet();
-        $object = $set['object'];
-        // dd($compresedImageLink);
-        // TODO: pass 1px image?
-        // $compresedImageLink = 'https://silverstripe-starter.lh/assets/pixel.jpg';
-        // $compresedImageLink = 'https://silverstripe-starter.lh/assets/a4ef1e29fb3a36b98d4666db49079465-lossy.jpeg';
-        // dd($object->Method, $object->Width, $object->Height);
-
-        if (method_exists($object, 'variantName'))
-        {
-            $image = $object;//->Image();
-        }
-        else
-        {
-            $image = $object->Image();
-        }
-
-        $name = $image->variantName($compressionKey, $object->Width, $object->Height); // $object->Method
-        // dd($name);
-        // dd(ImageVariant::get()->first()->parsedFileData()['filesys']['adapter']->write());
-        // dd($name);
-
-        $backend = new \SilverStripe\Assets\InterventionBackend;
-        $arrContextOptions=array(
-          "ssl"=>array(
-              "verify_peer"=>false,
-              "verify_peer_name"=>false,
-          ),
-        );
-
-        $tinypx = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQDAwQEBAQFBQQFBwsHBwYGBw4KCggLEA4RERAOEA8SFBoWEhMYEw8QFh8XGBsbHR0dERYgIh8cIhocHRz/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8Afz//2Q==';
-
-        $imagecontent = base64_decode($tinypx);
-        $resource = $backend->getImageManager()->make($imagecontent);
-
-
-        // $imagecontent = base64_decode($tinypx);
-        // file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions))
-
-
-
-
-
-
-
-
-        // dd($backend->getImageManager());
-        // dd($resource);
-        // $imageBackend = $image->getImageBackend();
-        // $imageBackend->setImageResource($resource);
-        // $store = Injector::inst()->get(AssetStore::class);
-        // exit;
-        // dd($imageBackend);
-
-        // SilverStripe\Assets\InterventionBackend
-        // $imageBackend->writeToStore(
-        //     $store,
-        //     $filename,
-        //     $hash,
-        //     $variant,
-        //     ['conflict' => AssetStore::CONFLICT_USE_EXISTING]
-        // );
-
-        // inside writeToStroe > $resource (Intervention\Image\Image)
-
-        // $result = $image->File->setFromString(
-        //   $imagecontent,
-        //   $name.'.jpg', $image->getHash(), $name, []
-        // );
-        // // $result = $this->File->setFromLocalFile($path, $name, null, null, $config);
-
-        // dd($result);
-
-
-        // $imagecontent = file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions));
-        // $imagecontentEncode = base64_encode($imagecontent);
-        // var_dump($imagecontent);exit;
-        // @file_put_contents('/Users/art/Code/modules/starter/public/assets/3216x2136__FitMaxWzYwMCwzMDAsIlNQLWxvc3N5Il0.jpg', $imagecontent, 2);
-
-        // exit;
-
-        // dd($name);
-
-        $result = $image->manipulateImage($name, function (Image_Backend $backend) use ($resource) {
-          // exit;
-            // dd($backend->getImageResource()->save('/Users/art/Code/modules/starter/public/assets/3216x2136__FitMaxWzYwMCwzMDAsIlNQLWxvc3N5Il0.jpg', 100));
-            // $backend->setImageResource($resource);
-            // $backend->getImageResource()->setEncoded($imagecontent);
-
-
-            // $backend->loadFrom($compresedImageLink);
-
-
-            $backend->setImageResource($resource);//->setQuality(1);
-
-
-
-
-            //   $tuple = $result->writeToStore(
-            //     $store,
-            //     $filename,
-            //     $hash,
-            //     $variant,
-            //     ['conflict' => AssetStore::CONFLICT_USE_EXISTING]
-            // );
-            // return;
-
-            // $imagecontent = base64_decode($tinypx);
-
-            // $backend->getImageManager()->make($imagecontent);
-
-              /**
-               * Need to find out if we can null this step/skip but get parsedFileData below. Currently if we do not return $backend, parsedFileData will be null.
-               */
-            return $backend;//->setQuality(1);
-        });
-
-        $currentVariant = ImageVariant::get()->filter('prefix', $result->getVariant())->first();
-
-        if ($currentVariant)
-        {
-            $parsed = $currentVariant->parsedFileData();
-
-            // if ($parsed)
-            // {
-                $imagecontent = file_get_contents($compresedImageLink, false, stream_context_create($arrContextOptions));
-
-
-                if ($set['filesystem'] == 's3')
-                {
-                    $path = $parsed['getFileID'];
-                }
-                else
-                {
-                    $path = $parsed['origin'];
-                }
-
-                if (strpos($path, '__SPWebP') !== false)
-                {
-                    $exp = explode('__SPWebP', $path);
-                    $exp2 = explode('.', $exp[1]);
-                    $path = $exp[0] . '__SPWebP' . $exp2[0] . '.webp';
-                }
-                else if (strpos($path, '__SPAVIF') !== false)
-                {
-                    $exp = explode('__SPAVIF', $path);
-                    $exp2 = explode('.', $exp[1]);
-                    $path = $exp[0] . '__SPAVIF' . $exp2[0] . '.avif';
-                }
-
-
-                if ($set['filesystem'] == 's3')
-                {
-                    // s3
-                    // $cfg = $parsed['filesys']['public']->prepareConfig([]);
-                    // dd($parsed['filesys']['adapter']);
-                    // $parsed['filesys']['public']->putStream($parsed['getFileID'], $imagecontent);
-                    $cfg = $parsed['filesys']['public']->getConfig();
-                    $parsed['filesys']['adapter']->write($path, $imagecontent, $cfg);
-
-                    // removes placeholder image for new variant
-                    if ($path != $parsed['getFileID'])
-                    {
-                        // remove > $parsed['getFileID']
-                    }
-                }
-                else
-                {
-                    // local
-                    @file_put_contents($path, $imagecontent, 2);
-
-                    // removes placeholder image for new variant
-                    if ($path != $parsed['origin'])
-                    {
-                        unlink($parsed['origin']);
-                    }
-                }
-
-                $currentVariant->CompressionID = $imageCompression->ID;
-                $currentVariant->write();
-
-                $imageCompression->State = 'compressed';
-                $imageCompression->write();
-            // }
         }
 
     }
