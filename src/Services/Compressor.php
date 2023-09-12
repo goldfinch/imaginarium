@@ -81,7 +81,7 @@ class Compressor
         if ($record->ImageID) // $set['type'] == 'origin'
         {
             // TODO: this param should be dynamic (set in config)
-            $rewriteOrigin = 'lossless';
+            $rewriteOrigin = null; // 'lossless';
 
             if ($rewriteOrigin)
             {
@@ -109,8 +109,49 @@ class Compressor
             }
         }
 
+        // dump($record->ID, $object->parsedFileData(), $fetch);
+        // return;
+
+        $paramStore = 1; // 1 - store based on getFileID | 2 - store multiple variants based on method name eg:. spgWebP spllAVIF etc..
+
+        // cfg (needs to be set in config) defines what type to use as main avif/webp
+        $storePresets = [
+          'origin' => [
+              'spllAVIF',
+              'spgWebP',
+          ],
+          'variant' => [
+              'spgAVIF',
+              'spgWebP',
+          ],
+        ];
+
         foreach ($fetch as $key => $fetchLink)
         {
+            if ($paramStore == 1)
+            {
+                if ($record->ImageID)
+                {
+                    // Original file
+                    if (!isset($storePresets['origin']) || !in_array($key, $storePresets['origin']))
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    // Variant file
+                    if (!isset($storePresets['variant']) || !in_array($key, $storePresets['variant']))
+                    {
+                        continue;
+                    }
+                }
+            }
+            else
+            {
+                // do nothing, let all fetch manipulation fire up
+            }
+
             if ($key == 'origin')
             {
                 // rewrite origin
@@ -202,7 +243,29 @@ class Compressor
                     // Prepare new link with right extension
                     $exp = explode($key, $path);
                     $exp2 = explode('.', $exp[1]);
-                    $path = $exp[0] . $key . $exp2[0];
+
+                    if ($paramStore == 1)
+                    {
+                        $v = $object->parsedFileData()['tuple']['Variant'];
+
+                        if ($v)
+                        {
+                            // variant
+                            $path = $exp[0] . $v;
+                        }
+                        else
+                        {
+                            // origin
+                            $f = $object->parsedFileData()['tuple']['Filename'];
+                            $fx = explode('.', $f);
+                            $fx2 = explode($fx[0], $path);
+                            $path = $fx2[0] . $fx[0];
+                        }
+                    }
+                    else
+                    {
+                        $path = $exp[0] . $key . $exp2[0];
+                    }
 
                     if (strpos($key, 'WebP') !== false)
                     {
@@ -379,7 +442,7 @@ class Compressor
         {
             foreach($response->pending as $pending)
             {
-                if ($pending->Status->Code == 1)
+                if ($pending->Status->Code == 1 && property_exists($pending, 'Key'))
                 {
                     $key = ((int) str_replace('file', '', $pending->Key)) - 1;
                     $current = $stackItem['assets'][$key];
