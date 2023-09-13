@@ -281,11 +281,15 @@ class Compressor
                 $name = $image->variantName($key, $object->Width, $object->Height); // $object->Method
 
                 $backend = new InterventionBackend;
+                // $backend = $image->getImageBackend();
 
                 // Preparing placeholder
                 $tinypx = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQDAwQEBAQFBQQFBwsHBwYGBw4KCggLEA4RERAOEA8SFBoWEhMYEw8QFh8XGBsbHR0dERYgIh8cIhocHRz/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8Afz//2Q==';
                 $imagecontent = base64_decode($tinypx);
                 $resource = $backend->getImageManager()->make($imagecontent);
+                // $imageBackend->setImageResource($resource);
+
+                // dd($image->getImageResource(), $name);
 
                 // Creating placeholder
                 $result = $image->manipulateImage($name, function (Image_Backend $backend) use ($resource) {
@@ -360,11 +364,11 @@ class Compressor
 
                         $cfg = $parsed['filesys']['public']->getConfig();
                         $parsed['filesys']['adapter']->write($path, $imagecontent, $cfg);
-
+                        // dd($path, $parsed['getFileID'], $parsed['filesys']['adapter']);
                         // removes placeholder image for new variant
                         if ($path != $parsed['getFileID'])
                         {
-                            // remove > $parsed['getFileID']
+                            $parsed['filesys']['adapter']->delete($parsed['getFileID']);
                         }
                     }
                     else
@@ -409,6 +413,11 @@ class Compressor
             }
 
             $parsedFileData = $set['object']->parsedFileData();
+
+            if (!$parsedFileData)
+            {
+                continue;
+            }
 
             $sysStack = $stack
                 ->where('filesystem', $set['filesystem'])
@@ -478,11 +487,19 @@ class Compressor
             ]);
         }
 
+        // dd($stackItem, collect($stackItem['assets'])->where('source', 'https://starter-assets.s3.ap-southeast-2.amazonaws.com/public/3216x2136__FitMaxWzM1MiwyNjRd.jpg')->first());
+
+
         if ($stackItem['filesystem'] == 's3')
         {
             if ($stackItem['compressor'] == 'splossy' || $stackItem['compressor'] == 'spglossy')
             {
-                $response = fromUrls($sources)->toBuffers();
+                try {
+                  $response = fromUrls($sources)->toBuffers();
+                }
+                catch (\ShortPixel\AccountException $e) {
+                    $error = $e->getMessage();
+                }
             }
             else if ($stackItem['compressor'] == 'tiny')
             {
@@ -495,11 +512,21 @@ class Compressor
             {
                 if ($compressionType == 'pending')
                 {
-                    $response = fromUrls($sources)->toBuffers();
+                    try {
+                      $response = fromUrls($sources)->toBuffers();
+                    }
+                    catch (\ShortPixel\AccountException $e) {
+                        $error = $e->getMessage();
+                    }
                 }
                 else if ($compressionType == 'wait')
                 {
-                    $response = fromFiles($sources)->toBuffers();
+                    try {
+                      $response = fromFiles($sources)->toBuffers();
+                    }
+                    catch (\ShortPixel\AccountException $e) {
+                        $error = $e->getMessage();
+                    }
                 }
             }
             else if ($stackItem['compressor'] == 'tiny')
@@ -508,7 +535,10 @@ class Compressor
             }
         }
 
-        // dump($response);
+        if (isset($error)) {
+          echo $error;
+          exit;
+        }
 
         // if ($response->status['code'] === 1)
         // {
@@ -516,14 +546,25 @@ class Compressor
         {
             foreach($response->pending as $pending)
             {
-                if ($pending->Status->Code == 1 && property_exists($pending, 'Key'))
+                if ($pending->Status->Code == 1) //  && property_exists($pending, 'Key') - this available only in local (fromFiles)
                 {
-                    $key = ((int) str_replace('file', '', $pending->Key)) - 1;
-                    $current = $stackItem['assets'][$key];
-                    $compressionObject = $current['compression'];
-                    $compressionObject->PendingURL = $pending->OriginalURL;
-                    $compressionObject->State = 'pending';
-                    $compressionObject->write();
+                    if ($stackItem['filesystem'] == 's3')
+                    {
+                        $current = collect($stackItem['assets'])->where('source', $pending->OriginalURL)->first();
+                    }
+                    else
+                    {
+                        $key = ((int) str_replace('file', '', $pending->Key)) - 1;
+                        $current = $stackItem['assets'][$key];
+                    }
+
+                    if ($current)
+                    {
+                        $compressionObject = $current['compression'];
+                        $compressionObject->PendingURL = $pending->OriginalURL;
+                        $compressionObject->State = 'pending';
+                        $compressionObject->write();
+                    }
                 }
             }
         }
