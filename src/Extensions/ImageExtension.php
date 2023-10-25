@@ -37,22 +37,22 @@ class ImageExtension extends Extension
         return $this->Lazy($this->owner->FocusFill($width, $height), $lazyloadTag);
     }
 
-    public function LazyFocusFillMax(int $width, int $height)
+    public function LazyFocusFillMax(int $width, int $height, $lazyloadTag = true)
     {
         return $this->Lazy($this->owner->FocusFillMax($width, $height));
     }
 
-    public function LazyFitMax(int $width, int $height)
+    public function LazyFitMax(int $width, int $height, $lazyloadTag = true)
     {
         return $this->Lazy($this->owner->FitMax($width, $height));
     }
 
-    public function LazyFocusCropWidth(int $width)
+    public function LazyFocusCropWidth(int $width, $lazyloadTag = true)
     {
         return $this->Lazy($this->owner->FocusCropWidth($width));
     }
 
-    public function LazyFocusCropHeight(int $height)
+    public function LazyFocusCropHeight(int $height, $lazyloadTag = true)
     {
         return $this->Lazy($this->owner->FocusCropHeight($height));
     }
