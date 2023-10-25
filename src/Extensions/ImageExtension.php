@@ -32,9 +32,9 @@ class ImageExtension extends Extension
         return $this->owner->dbObject('PendingData')->getStoreAsArray();
     }
 
-    public function LazyFocusFill(int $width, int $height)
+    public function LazyFocusFill(int $width, int $height, $lazyloadTag = true)
     {
-        return $this->Lazy($this->owner->FocusFill($width, $height));
+        return $this->Lazy($this->owner->FocusFill($width, $height), $lazyloadTag);
     }
 
     public function LazyFocusFillMax(int $width, int $height)
@@ -289,7 +289,7 @@ class ImageExtension extends Extension
         ])->renderWith(['Layout' => 'Goldfinch/Imaginarium/ResponsiveImage']);
     }
 
-    protected function Lazy($file)
+    protected function Lazy($file, $lazyloadTag = true)
     {
         if (!$file) {
           return $file;
@@ -323,6 +323,11 @@ class ImageExtension extends Extension
           $file = $file->setAttribute('data-loaded', 'false');
           $file = $file->setAttribute('data-src', $url);
 
+        }
+
+        if (!$lazyloadTag)
+        {
+            $file = $file->setAttribute('loading', false);
         }
 
         return $file;
