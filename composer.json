@@ -13,7 +13,6 @@
         "php": ">=8.0",
         "silverstripe/framework": "^5.0",
         "silverstripe/admin": "^2.0",
-        "rosell-dk/webp-convert": "^2.9",
         "phptek/jsontext": "dev-ss5",
         "shortpixel/shortpixel-php": "*",
         "foroco/php-browser-detection": "^2.7"
