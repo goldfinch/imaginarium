@@ -8,3 +8,9 @@ TINIFY_API_KEY=""
 
 
 "notify_me" => null, // should contain full URL of of notification script (notify.php) - to be implemented
+
+```
+$Image.EscapeF.FocusFill
+$Image.EscapeFAvif.FocusFill
+$Image.EscapeFWebp.FocusFill
+```

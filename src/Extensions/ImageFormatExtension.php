@@ -9,7 +9,10 @@ class ImageFormatExtension extends DataExtension
 {
     public function updateURL(&$link)
     {
-        $link = $this->imaginariumURL($link);
+        if (!$this->owner->escapeFormatting)
+        {
+            $link = $this->imaginariumURL($link);
+        }
     }
 
     private function imaginariumURL($link)
@@ -26,7 +29,7 @@ class ImageFormatExtension extends DataExtension
                 $ex3 = explode($ex2[0], $fullpath);
                 $ex4 = explode($ex2[0], $link);
 
-                if (in_array('avif', $imageSupport))
+                if (!$this->owner->escapeFormattingAvif && in_array('avif', $imageSupport))
                 {
                     $avif = $ex3[0] . $ex2[0] . '.' . 'avif';
                     if (file_exists($avif))
@@ -35,7 +38,7 @@ class ImageFormatExtension extends DataExtension
                     }
                 }
 
-                if (!isset($newSrc) && in_array('webp', $imageSupport))
+                if (!$this->owner->escapeFormattingWebp && !isset($newSrc) && in_array('webp', $imageSupport))
                 {
                     $webp = $ex3[0] . $ex2[0] . '.' . 'webp';
                     if (file_exists($webp))

@@ -107,6 +107,27 @@ class ImageExtension extends Extension
         return null;
     }
 
+    public function EscapeF()
+    {
+        $this->owner->escapeFormatting = true;
+
+        return $this->owner;
+    }
+
+    public function EscapeFAvif()
+    {
+        $this->owner->escapeFormattingAvif = true;
+
+        return $this->owner;
+    }
+
+    public function EscapeFWebp()
+    {
+        $this->owner->escapeFormattingWebp = true;
+
+        return $this->owner;
+    }
+
     /**
      * intrinsicWidth & intrinsicHeight should be the highest possible size (the top breakpoint) of the current image
      */
