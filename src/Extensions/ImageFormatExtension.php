@@ -29,21 +29,27 @@ class ImageFormatExtension extends DataExtension
                 $ex3 = explode($ex2[0], $fullpath);
                 $ex4 = explode($ex2[0], $link);
 
-                if (!$this->owner->escapeFormattingAvif && in_array('avif', $imageSupport))
+                if (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'image/avif') >= 0)
                 {
-                    $avif = $ex3[0] . $ex2[0] . '.' . 'avif';
-                    if (file_exists($avif))
+                    if (!$this->owner->escapeFormattingAvif && in_array('avif', $imageSupport))
                     {
-                        $newSrc = $ex4[0] . $ex2[0] . '.' . 'avif';
+                        $avif = $ex3[0] . $ex2[0] . '.' . 'avif';
+                        if (file_exists($avif))
+                        {
+                            $newSrc = $ex4[0] . $ex2[0] . '.' . 'avif';
+                        }
                     }
                 }
 
-                if (!$this->owner->escapeFormattingWebp && !isset($newSrc) && in_array('webp', $imageSupport))
+                if (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'image/webp') >= 0)
                 {
-                    $webp = $ex3[0] . $ex2[0] . '.' . 'webp';
-                    if (file_exists($webp))
+                    if (!$this->owner->escapeFormattingWebp && !isset($newSrc) && in_array('webp', $imageSupport))
                     {
-                        $newSrc = $ex4[0] . $ex2[0] . '.' . 'webp';
+                        $webp = $ex3[0] . $ex2[0] . '.' . 'webp';
+                        if (file_exists($webp))
+                        {
+                            $newSrc = $ex4[0] . $ex2[0] . '.' . 'webp';
+                        }
                     }
                 }
 
