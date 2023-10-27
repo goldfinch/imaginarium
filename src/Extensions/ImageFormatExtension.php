@@ -2,6 +2,7 @@
 
 namespace Goldfinch\Imaginarium\Extensions;
 
+use SilverStripe\Core\Environment;
 use SilverStripe\ORM\DataExtension;
 use Goldfinch\Imaginarium\Services\Compressor;
 
@@ -12,6 +13,11 @@ class ImageFormatExtension extends DataExtension
         if (!$this->owner->escapeFormatting)
         {
             $link = $this->imaginariumURL($link);
+        }
+
+        if (Environment::getEnv('APP_URL_CDN'))
+        {
+            $link = Environment::getEnv('APP_URL_CDN') . $link;
         }
     }
 

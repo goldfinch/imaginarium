@@ -2,6 +2,8 @@
 .env:
 SHORTPIXEL_API_KEY=""
 TINIFY_API_KEY=""
+
+APP_URL_CDN=
 ```
 #TODO
   - .htaccess
