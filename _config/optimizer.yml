@@ -6,6 +6,7 @@ After:
   - "#silverstripes3-flysystem"
   - "#silverstripes3-assetscore"
 ---
+
 SilverStripe\Assets\File:
   allowed_extensions:
     - webp
@@ -18,34 +19,3 @@ SilverStripe\Core\Injector\Injector:
   SilverStripe\Assets\Image_Backend:
     properties:
       Quality: 100
-# SilverStripe\Assets\Image:
-#   imaginarium_compression:
-#     service:
-#       - 'shortpixel'
-#       # - 'tinypng'
-#     origin: true
-#       origin: true
-#       webp: true
-#       avif: true
-#     variants: true
-#       origin: true
-#       webp: true
-#       avif: true
-  # Define our SS asset backend
-  # SilverStripe\Assets\Storage\AssetStore:
-    # class: Goldfinch\Imaginarium\FlysystemAssetStore
-
-# Goldfinch\Imaginarium\Models\CompressedImage:
-#   compression_rules:
-#     source:
-#       - sp[origin][lossy] # do we want to keep the initial original image unchanged?
-#       - sp[avif][lossless]
-#       - sp[webp][glossy]
-#       # sp[avif,webp][lossless,glossy]
-#     variant:
-#       - sp[origin][lossy]
-#       - sp[avif][lossless]
-#       - sp[webp][glossy]
-#       # - sp[webp][lossless]:w=150,h=150
-#       # - sp[webp][lossy]:w<150
-#       # - sp[webp][lossless]:f=png

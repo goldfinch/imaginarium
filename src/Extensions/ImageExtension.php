@@ -3,34 +3,17 @@
 namespace Goldfinch\Imaginarium\Extensions;
 
 use SilverStripe\ORM\ArrayList;
-use SilverStripe\View\ArrayData;
 use SilverStripe\Core\Extension;
-use PhpTek\JSONText\ORM\FieldType\JSONText;
-use Goldfinch\Imaginarium\Models\CompressedImage;
+use SilverStripe\View\ArrayData;
+use Goldfinch\Imaginarium\Services\Imaginator;
 
 class ImageExtension extends Extension
 {
-    private static $db = [
-        // 'Optimized' => 'Boolean',
-        // 'PendingData' => JSONText::class,
-        // 'ManipulatedData' => JSONText::class,
-    ];
-
-    private static $has_many = [
-        // 'Compressions' => CompressedImage::class,
-    ];
+    private static $escapeFormatting;
+    private static $escapeFormattingAvif;
+    private static $escapeFormattingWebp;
 
     private $RIOptions = null;
-
-    public function ManipulatedData()
-    {
-        return $this->owner->dbObject('ManipulatedData')->getStoreAsArray();
-    }
-
-    public function PendingData()
-    {
-        return $this->owner->dbObject('PendingData')->getStoreAsArray();
-    }
 
     public function LazyFocusFill(int $width, int $height, $lazyloadTag = true)
     {
@@ -57,17 +40,48 @@ class ImageExtension extends Extension
         return $this->Lazy($this->owner->FocusCropHeight($height));
     }
 
-    public function getSourceMediaQuery($mq, $w)
+    protected function Lazy($file, $lazyloadTag = true)
     {
-        $queryString = '';
+        if (!$file) {
+          return $file;
+        }
 
-        $mq = trim($mq);
+        // Default Lazy Thumbnail width (height is calculated automaticly proportionally based on width)
+        $thumbnailWidth = 80;
 
-        return str_replace([
-          '%w'
-        ], [
-          $w.'px'
-        ], $mq);
+        $width = $file->getAttribute('width');
+        $height = $file->getAttribute('height');
+
+        $thumbnailWidthPercentage = $width / 100;
+        $thumbnailHeightPercentage = $height / 100;
+
+        $thumbWidthPercentage = $thumbnailWidth / $thumbnailWidthPercentage;
+        $thumbnailHeight = $thumbnailHeightPercentage * $thumbWidthPercentage;
+
+        $url = $file->getAttribute('src');
+
+        $thumbnail = $file->owner->FocusFill((int) $thumbnailWidth, (int) $thumbnailHeight);
+
+        if (!$thumbnail) {
+
+          $thumbnail = $file->owner->Fill((int) $thumbnailWidth, (int) $thumbnailHeight);
+
+        }
+
+        if($thumbnail) {
+
+          $file = $file->setAttribute('src', $thumbnail->getURL());
+          $file = $file->setAttribute('data-loaded', 'false');
+          $file = $file->setAttribute('data-src', $url);
+
+        }
+
+        if (!$lazyloadTag)
+        {
+            $file = $file->setAttribute('loading', false);
+        }
+
+        return $file;
     }
 
     private function setRIoptions($options)
@@ -128,14 +142,42 @@ class ImageExtension extends Extension
         return $this->owner;
     }
 
-    /**
-     * intrinsicWidth & intrinsicHeight should be the highest possible size (the top breakpoint) of the current image
-     */
-    public function ResponsiveImage($intrinsicWidth, $intrinsicHeight, $options = null)
+    public function Responsive($ratio, $sizes, $options = null)
     {
+        $expl = explode(':', $ratio);
+
+        $intrinsicWidth = (int) $expl[0];
+        $intrinsicHeight = (int) $expl[1];
+
+        $sizes = explode(',', $sizes);
+        $formatedSizes = [];
+
+        array_map(function($w) use (&$formatedSizes) {
+          $ex = explode('>', $w);
+
+          $bp = (int) trim($ex[0]);
+          $wd = (int) trim($ex[1]);
+          $formatedSizes[$bp] = $wd;
+
+        }, $sizes);
+
+        krsort($formatedSizes);
+
+        $singleWidth = ['CropWidth', 'ScaleWidth', 'ScaleMaxWidth'];
+        $singleHeight = ['CropHeight', 'ScaleHeight', 'ScaleMaxHeight'];
+
         $this->setRIoptions($options);
         // ! here to make sure that the initially passed $options is not carring options, to force using object property instead
         $options = null;
+
+        if ($this->hasRIOption('manipulation'))
+        {
+            $manipulation = $this->getRIOption('manipulation');
+        }
+        else
+        {
+            $manipulation = 'FocusFill';
+        }
 
         // Bootstrap var --bs-gutter-x
         if ($this->hasRIOption('gutter') && $this->getRIOption('gutter'))
@@ -145,155 +187,44 @@ class ImageExtension extends Extension
 
         $intrinsicRatio = $intrinsicWidth / $intrinsicHeight;
 
-        // !important keep the descending order : from largest to smallest
-        $breakpoints = $this->owner->config()->get('imaginarium')['breakpoints'];
-
-        $breakpointsMax = $this->owner->config()->get('imaginarium')['breakpointsMax'];
-
-        $gutters = $this->owner->config()->get('imaginarium')['gutters'];
-
-        // !important keep the descending order : from largest to smallest
-        $mediaQueries = $this->owner->config()->get('imaginarium')['mediaQueries'];
-
-        // register new Breakpoints
-        if ($this->hasRIOption('newbp'))
-        {
-            $newBps = [];
-
-            foreach ($this->getRIOption('newbp') as $bp => $v)
-            {
-                $breakpoints[$bp] = $v['bp'];
-
-                if (isset($v['bpmax']))
-                {
-                    $breakpointsMax[$bp] = $v['bpmax'];
-                }
-                else
-                {
-                    $breakpointsMax[$bp] = $v['bp'];
-                }
-
-                // check alias, refer to existing
-                if (isset($mediaQueries[$v['mq']]))
-                {
-                    $mediaQueries[$bp] = $mediaQueries[$v['mq']];
-                }
-                else
-                {
-                    $mediaQueries[$bp] = $v['mq'];
-                }
-
-                // check alias, refer to existing
-                if (isset($gutters[$v['g']]))
-                {
-                    $gutters[$bp] = $gutters[$v['g']];
-                }
-                else
-                {
-                    $gutters[$bp] = $v['g'];
-                }
-            }
-        }
-
-        if (isset($customGutter) && $customGutter)
-        {
-            // with custom global gutters (for all)
-            $scaling = current($breakpointsMax) - ($customGutter * 2);
-        }
-        else if (isset($customGutter) && $customGutter === false)
-        {
-            // without gutters
-            $scaling = false;
-        }
-        else
-        {
-            // base gutters (default)
-            $scaling = current($breakpointsMax) - (current($gutters) * 2);
-        }
-
-        if ($scaling && $scaling != $intrinsicWidth)
-        {
-            $scalingRatio = $scaling / $intrinsicWidth;
-        }
-
         $sizes = ArrayList::create();
 
-        foreach($breakpoints as $bp => $w)
+        $firstImage = null;
+
+        foreach($formatedSizes as $bp => $width)
         {
-            $mqImageW = $breakpointsMax[$bp]; // $w
+            $height = (int) round($width / $intrinsicRatio);
 
-            $mqImageW -= ($gutters[$bp] * 2); // $w
-
-            // << Modifications
-
-            if (isset($scalingRatio) && (!isset($customGutter) || $customGutter !== false))
+            if (in_array($manipulation, $singleWidth))
             {
-                // with custom global gutters (for all) && base gutters (default)
-                $mqImageW = round($mqImageW / $scalingRatio);
+                $sizedImage = $this->owner->EscapeF()->$manipulation($width);
+            }
+            else if (in_array($manipulation, $singleHeight))
+            {
+                $sizedImage = $this->owner->EscapeF()->$manipulation($height);
+            }
+            else
+            {
+                $sizedImage = $this->owner->EscapeF()->$manipulation($width, $height);
             }
 
-            // Modifications >>
-
-            if (isset($mediaQueries[$bp]))
+            if ($bp === 0)
             {
-                foreach($mediaQueries[$bp] as $mq)
-                {
-                    if ($this->hasRIOption('bpw'))
-                    {
-                        if (isset($this->getRIOption('bpw')[$bp]))
-                        {
-                            $mqImageW = $this->getRIOption('bpw')[$bp];
-                        }
-                    }
-
-                    $mqImageH = round($mqImageW / $intrinsicRatio);
-
-                    if ($this->hasRIOption('bph'))
-                    {
-                        if (isset($this->getRIOption('bph')[$bp]))
-                        {
-                            $mqImageH = $this->getRIOption('bph')[$bp];
-                        }
-                    }
-
-                    if ($this->hasRIOption('scale'))
-                    {
-                        $mqImageW = round($mqImageW + ($mqImageW / 100 * $this->getRIOption('scale')));
-                        $mqImageH = round($mqImageH + ($mqImageH / 100 * $this->getRIOption('scale')));
-                    }
-
-                    $sizes->push(ArrayData::create([
-                      'Breakpoint' => $bp,
-                      'Image' => $this->owner->FocusFill($mqImageW, $mqImageH),
-                      'MediaQuery' => $this->getSourceMediaQuery($mq, $w),
-                      // Scale
-                    ]));
-                }
+                $firstImage = $sizedImage;
+                continue;
             }
-        }
 
-        // Default image (the max width before the first specified breakpoint), it is assumed that below the first breakpoint, the image is treated as width: 100% within its container
+            $mediaQuery = '(min-width: ' . $bp . 'px)'; // and (min-device-pixel-ratio: 2.0)';
 
-        $baseBreakpoint = array_search(0, $breakpoints);
-        $defaultWidth = min(array_filter($breakpoints));
+            $sizedImageAvif = $sizedImage->Avif();
+            $sizedImageWebp = $sizedImage->Webp();
 
-        // Check if custom xs supplied, and use it instead if so
-        if ($this->hasRIOption('bpw'))
-        {
-            if (isset($this->getRIOption('bpw')[$baseBreakpoint]))
-            {
-                $defaultWidth = $this->getRIOption('bpw')[$baseBreakpoint];
-            }
-        }
-
-        $defaultHeight = round($defaultWidth / $intrinsicRatio);
-
-        if ($this->hasRIOption('bph'))
-        {
-            if (isset($this->getRIOption('bph')[$baseBreakpoint]))
-            {
-                $defaultHeight = $this->getRIOption('bph')[$baseBreakpoint];
-            }
+            $sizes->push(ArrayData::create([
+              'Image' => $sizedImage,
+              'ImageAvif' => $sizedImageAvif,
+              'ImageWebp' => $sizedImageWebp,
+              'MediaQuery' => $mediaQuery,
+            ]));
         }
 
         // Placeholder image
@@ -301,56 +232,134 @@ class ImageExtension extends Extension
         $placeholderWidth = 80;
         $placeholderHeight = round($placeholderWidth / $intrinsicRatio);
 
+        if (in_array($manipulation, $singleWidth))
+        {
+            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderWidth);
+        }
+        else if (in_array($manipulation, $singleHeight))
+        {
+            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderHeight);
+        }
+        else
+        {
+            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderWidth, $placeholderHeight);
+        }
+
         return $this->owner->customise([
           'Sizes' => $sizes,
-          'DefaultImage' => $this->owner->FocusFill($defaultWidth, $defaultHeight),
-          'DefaultImagePlaceholder' => $this->owner->FocusFill($placeholderWidth, $placeholderHeight),
+          'FirstImage' => $firstImage,
+          'PlaceholderImage' => $placeholderImage,
           'Lazy' => $this->hasRIOption('lazy') ? $this->getRIOption('lazy') : true,
           'LazyLoadingTag' => $this->hasRIOption('loadingtag') ? $this->getRIOption('loadingtag') : true,
-        ])->renderWith(['Layout' => 'Goldfinch/Imaginarium/ResponsiveImage']);
+        ])->renderWith(['Layout' => 'Goldfinch/Imaginarium/Responsive']);
+    }
+    public function updateURL(&$link)
+    {
+        if ($this->owner->getIsImage())
+        {
+            if (!$this->owner->escapeFormatting)
+            {
+                $link = $this->imaginariumURL($link);
+            }
+        }
+
+        if (Environment::getEnv('APP_URL_CDN'))
+        {
+            $link = Environment::getEnv('APP_URL_CDN') . $link;
+        }
     }
 
-    protected function Lazy($file, $lazyloadTag = true)
+    public function Avif()
     {
-        if (!$file) {
-          return $file;
-        }
+        $link = $this->owner->getURL();
 
-        // Default Lazy Thumbnail width (height is calculated automaticly proportionally based on width)
-        $thumbnailWidth = 80;
-
-        $width = $file->getAttribute('width');
-        $height = $file->getAttribute('height');
-
-        $thumbnailWidthPercentage = $width / 100;
-        $thumbnailHeightPercentage = $height / 100;
-
-        $thumbWidthPercentage = $thumbnailWidth / $thumbnailWidthPercentage;
-        $thumbnailHeight = $thumbnailHeightPercentage * $thumbWidthPercentage;
-
-        $url = $file->getAttribute('src');
-
-        $thumbnail = $file->owner->FocusFill((int) $thumbnailWidth, (int) $thumbnailHeight);
-
-        if (!$thumbnail) {
-
-          $thumbnail = $file->owner->Fill((int) $thumbnailWidth, (int) $thumbnailHeight);
-
-        }
-
-        if($thumbnail) {
-
-          $file = $file->setAttribute('src', $thumbnail->getURL());
-          $file = $file->setAttribute('data-loaded', 'false');
-          $file = $file->setAttribute('data-src', $url);
-
-        }
-
-        if (!$lazyloadTag)
+        if (isset($link))
         {
-            $file = $file->setAttribute('loading', false);
+            $fullpath = BASE_PATH . '/' . PUBLIC_DIR . $link;
+            $ex = explode('/', $fullpath);
+            $ex2 = explode('.', last($ex));
+            $ex3 = explode($ex2[0], $fullpath);
+            $ex4 = explode($ex2[0], $link);
+
+            $avif = $ex3[0] . $ex2[0] . '.' . 'avif';
+
+            if (file_exists($avif))
+            {
+                return $ex4[0] . $ex2[0] . '.' . 'avif';
+            }
         }
 
-        return $file;
+        return null;
+    }
+
+    public function Webp()
+    {
+        $link = $this->owner->getURL();
+
+        if (isset($link))
+        {
+            $fullpath = BASE_PATH . '/' . PUBLIC_DIR . $link;
+            $ex = explode('/', $fullpath);
+            $ex2 = explode('.', last($ex));
+            $ex3 = explode($ex2[0], $fullpath);
+            $ex4 = explode($ex2[0], $link);
+
+            $webp = $ex3[0] . $ex2[0] . '.' . 'webp';
+
+            if (file_exists($webp))
+            {
+                return $ex4[0] . $ex2[0] . '.' . 'webp';
+            }
+        }
+
+        return null;
+    }
+
+    private function imaginariumURL($link)
+    {
+        $imageSupport = Imaginator::imageSupport();
+
+        if ($imageSupport && count($imageSupport))
+        {
+            if (isset($link))
+            {
+                $fullpath = BASE_PATH . '/' . PUBLIC_DIR . $link;
+                $ex = explode('/', $fullpath);
+                $ex2 = explode('.', last($ex));
+                $ex3 = explode($ex2[0], $fullpath);
+                $ex4 = explode($ex2[0], $link);
+
+                if (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'image/avif') >= 0)
+                {
+                    if (!$this->owner->escapeFormattingAvif && in_array('avif', $imageSupport))
+                    {
+                        $avif = $ex3[0] . $ex2[0] . '.' . 'avif';
+                        if (file_exists($avif))
+                        {
+                            $newSrc = $ex4[0] . $ex2[0] . '.' . 'avif';
+                        }
+                    }
+                }
+
+                if (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'image/webp') >= 0)
+                {
+                    if (!$this->owner->escapeFormattingWebp && !isset($newSrc) && in_array('webp', $imageSupport))
+                    {
+                        $webp = $ex3[0] . $ex2[0] . '.' . 'webp';
+                        if (file_exists($webp))
+                        {
+                            $newSrc = $ex4[0] . $ex2[0] . '.' . 'webp';
+                        }
+                    }
+                }
+
+                if (isset($newSrc))
+                {
+                    return $newSrc;
+                }
+            }
+        }
+
+        return $link;
     }
 }
