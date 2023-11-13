@@ -7,7 +7,3 @@ After:
 SilverStripe\Assets\Image:
   extensions:
     - Goldfinch\Imaginarium\Extensions\ImageExtension
-
-# SilverStripe\Assets\Storage\DBFile:
-#   extensions:
-#     - Goldfinch\Imaginarium\Extensions\ImageFormatExtension
