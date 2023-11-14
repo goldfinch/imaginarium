@@ -179,12 +179,6 @@ class ImageExtension extends Extension
             $manipulation = 'FocusFill';
         }
 
-        // Bootstrap var --bs-gutter-x
-        if ($this->hasRIOption('gutter') && $this->getRIOption('gutter'))
-        {
-            $customGutter = $this->getRIOption('gutter');
-        }
-
         $intrinsicRatio = $intrinsicWidth / $intrinsicHeight;
 
         $sizes = ArrayList::create();
@@ -216,8 +210,8 @@ class ImageExtension extends Extension
 
             $mediaQuery = '(min-width: ' . $bp . 'px)'; // and (min-device-pixel-ratio: 2.0)';
 
-            $sizedImageAvif = $sizedImage->Avif();
-            $sizedImageWebp = $sizedImage->Webp();
+            $sizedImageAvif = $this->Avif($sizedImage);
+            $sizedImageWebp = $this->Webp($sizedImage);
 
             $sizes->push(ArrayData::create([
               'Image' => $sizedImage,
@@ -269,9 +263,9 @@ class ImageExtension extends Extension
         }
     }
 
-    public function Avif()
+    public function Avif($image)
     {
-        $link = $this->owner->getURL();
+        $link = $image->getURL();
 
         if (isset($link))
         {
@@ -292,9 +286,9 @@ class ImageExtension extends Extension
         return null;
     }
 
-    public function Webp()
+    public function Webp($image)
     {
-        $link = $this->owner->getURL();
+        $link = $image->getURL();
 
         if (isset($link))
         {

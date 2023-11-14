@@ -25,18 +25,18 @@
         height="{$Image.Height}"
         type="image/webp"
       >
-      <source
-        media="{$MediaQuery}"
-        <% if Lazy %>
-        data-srcset="{$Image.URL}"
-        <% else %>
-        srcset="{$Image.URL}"
-        <% end_if %>
-        width="{$Image.Width}"
-        height="{$Image.Height}"
-        type="$Image.MimeType"
-      >
     <% end_if %>
+    <source
+      media="{$MediaQuery}"
+      <% if Lazy %>
+      data-srcset="{$Image.URL}"
+      <% else %>
+      srcset="{$Image.URL}"
+      <% end_if %>
+      width="{$Image.Width}"
+      height="{$Image.Height}"
+      type="$Image.MimeType"
+    >
 	<% end_loop %>
   <img
     alt="{$FirstImage.Title}"
