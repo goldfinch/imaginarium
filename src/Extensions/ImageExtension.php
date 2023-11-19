@@ -2,6 +2,7 @@
 
 namespace Goldfinch\Imaginarium\Extensions;
 
+use foroco\BrowserDetection;
 use SilverStripe\ORM\ArrayList;
 use SilverStripe\Core\Extension;
 use SilverStripe\View\ArrayData;
@@ -14,6 +15,61 @@ class ImageExtension extends Extension
     private static $escapeFormattingWebp;
 
     private $RIOptions = null;
+
+    /**
+     * Detecting browser and checking if its version support requested format
+     */
+    public static function browserCheck($format)
+    {
+        $agent = $_SERVER['HTTP_USER_AGENT'];
+        $browserDetecter = new BrowserDetection();
+        $userAgen = $browserDetecter->getAll($agent);
+
+        // https://caniuse.com/avif
+        // https://caniuse.com/webp
+
+        if ($userAgen)
+        {
+            $browsers = [
+                'Chrome' => [
+                    'avif' => 85,
+                    'webp' => 32,
+                ],
+                'Edge' => [
+                    'avif' => false,
+                    'webp' => 18,
+                ],
+                'Safari' => [
+                    'avif' => 16.4,
+                    'webp' => 16,
+                ],
+                'Firefox' => [
+                    'avif' => 93,
+                    'webp' => 65,
+                ],
+                'Opera' => [
+                    'avif' => 71,
+                    'webp' => 19,
+                ],
+                'IE' => [
+                    'avif' => false,
+                    'webp' => false,
+                ],
+            ];
+
+            if (isset($browsers[$userAgen['browser_name']]))
+            {
+                $brw = $browsers[$userAgen['browser_name']];
+
+                if (isset($brw[$format]) && $brw[$format] !== false)
+                {
+                    return $userAgen['browser_version'] >= $brw[$format];
+                }
+            }
+        }
+
+        return false;
+    }
 
     public function LazyFocusFill(int $width, int $height, $lazyloadTag = true)
     {
@@ -184,6 +240,7 @@ class ImageExtension extends Extension
         $sizes = ArrayList::create();
 
         $firstImage = null;
+        $firstImageDynamicLink = null;
 
         foreach($formatedSizes as $bp => $width)
         {
@@ -191,19 +248,52 @@ class ImageExtension extends Extension
 
             if (in_array($manipulation, $singleWidth))
             {
-                $sizedImage = $this->owner->EscapeF()->$manipulation($width);
+                if ($bp === 0)
+                {
+                    $sizedImage = $this->owner->$manipulation($width);
+                }
+                else
+                {
+                    $sizedImage = $this->owner->EscapeF()->$manipulation($width);
+                }
             }
             else if (in_array($manipulation, $singleHeight))
             {
-                $sizedImage = $this->owner->EscapeF()->$manipulation($height);
+                if ($bp === 0)
+                {
+                    $sizedImage = $this->owner->$manipulation($height);
+                }
+                else
+                {
+                    $sizedImage = $this->owner->EscapeF()->$manipulation($height);
+                }
             }
             else
             {
-                $sizedImage = $this->owner->EscapeF()->$manipulation($width, $height);
+                if ($bp === 0)
+                {
+                    $sizedImage = $this->owner->$manipulation($width, $height);
+                }
+                else
+                {
+                    $sizedImage = $this->owner->EscapeF()->$manipulation($width, $height);
+                }
             }
 
             if ($bp === 0)
             {
+                // TODO: move to its own method
+                $agent = $_SERVER['HTTP_USER_AGENT'];
+
+                if ((strpos($agent, 'image/avif') !== false || self::browserCheck('avif')) && $this->Avif($sizedImage))
+                {
+                    $firstImageDynamicLink = $this->Avif($sizedImage);
+                }
+                else if ((strpos($agent, 'image/webp') !== false || self::browserCheck('webp')) && $this->Webp($sizedImage))
+                {
+                    $firstImageDynamicLink = $this->Webp($sizedImage);
+                }
+
                 $firstImage = $sizedImage;
                 continue;
             }
@@ -228,21 +318,38 @@ class ImageExtension extends Extension
 
         if (in_array($manipulation, $singleWidth))
         {
-            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderWidth);
+            $placeholderImage = $this->owner->$manipulation($placeholderWidth);
         }
         else if (in_array($manipulation, $singleHeight))
         {
-            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderHeight);
+            $placeholderImage = $this->owner->$manipulation($placeholderHeight);
         }
         else
         {
-            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderWidth, $placeholderHeight);
+            $placeholderImage = $this->owner->$manipulation($placeholderWidth, $placeholderHeight);
+        }
+
+        // TODO: move to its own method
+        $agent = $_SERVER['HTTP_USER_AGENT'];
+
+        if ((strpos($agent, 'image/avif') !== false || self::browserCheck('avif')) && $this->Avif($placeholderImage))
+        {
+            $placeholderImageUrl = $this->Avif($placeholderImage);
+        }
+        else if ((strpos($agent, 'image/webp') !== false || self::browserCheck('webp')) && $this->Webp($placeholderImage))
+        {
+            $placeholderImageUrl = $this->Webp($placeholderImage);
+        }
+        else
+        {
+            $placeholderImageUrl = $placeholderImage->getURL();
         }
 
         return $this->owner->customise([
           'Sizes' => $sizes,
           'FirstImage' => $firstImage,
-          'PlaceholderImage' => $placeholderImage,
+          'FirstImageDynamicLink' => $firstImageDynamicLink,
+          'PlaceholderImageURL' => $placeholderImageUrl,
           'Lazy' => $this->hasRIOption('lazy') ? $this->getRIOption('lazy') : true,
           'LazyLoadingTag' => $this->hasRIOption('loadingtag') ? $this->getRIOption('loadingtag') : true,
         ])->renderWith(['Layout' => 'Goldfinch/Imaginarium/Responsive']);
