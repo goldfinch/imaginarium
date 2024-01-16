@@ -5,14 +5,9 @@ namespace Goldfinch\Imaginarium\Extensions;
 use SilverStripe\ORM\ArrayList;
 use SilverStripe\Core\Extension;
 use SilverStripe\View\ArrayData;
-use Goldfinch\Imaginarium\Services\Imaginator;
 
 class ImageExtension extends Extension
 {
-    private static $escapeFormatting;
-    private static $escapeFormattingAvif;
-    private static $escapeFormattingWebp;
-
     private $RIOptions = null;
 
     public function LazyFocusFill(int $width, int $height, $lazyloadTag = true)
@@ -119,27 +114,6 @@ class ImageExtension extends Extension
         }
 
         return null;
-    }
-
-    public function EscapeF()
-    {
-        $this->owner->escapeFormatting = true;
-
-        return $this->owner;
-    }
-
-    public function EscapeFAvif()
-    {
-        $this->owner->escapeFormattingAvif = true;
-
-        return $this->owner;
-    }
-
-    public function EscapeFWebp()
-    {
-        $this->owner->escapeFormattingWebp = true;
-
-        return $this->owner;
     }
 
     public function Responsive($ratio, $sizes, $options = null)
@@ -267,114 +241,5 @@ class ImageExtension extends Extension
           'Lazy' => $this->hasRIOption('lazy') ? $this->getRIOption('lazy') : true,
           'LazyLoadingTag' => $this->hasRIOption('loadingtag') ? $this->getRIOption('loadingtag') : true,
         ])->renderWith(['Layout' => 'Goldfinch/Imaginarium/Responsive']);
-    }
-    public function updateURL(&$link)
-    {
-        if ($this->owner->getIsImage())
-        {
-            if (!$this->owner->escapeFormatting)
-            {
-                $link = $this->imaginariumURL($link);
-            }
-        }
-
-        if (Environment::getEnv('APP_URL_CDN'))
-        {
-            $link = Environment::getEnv('APP_URL_CDN') . $link;
-        }
-    }
-
-    public function Avif($image)
-    {
-        $link = $image->getURL();
-
-        if (isset($link))
-        {
-            $fullpath = BASE_PATH . '/' . PUBLIC_DIR . $link;
-            $ex = explode('/', $fullpath);
-            $ex2 = explode('.', last($ex));
-            $ex3 = explode($ex2[0], $fullpath);
-            $ex4 = explode($ex2[0], $link);
-
-            $avif = $ex3[0] . $ex2[0] . '.' . 'avif';
-
-            if (file_exists($avif))
-            {
-                return $ex4[0] . $ex2[0] . '.' . 'avif';
-            }
-        }
-
-        return null;
-    }
-
-    public function Webp($image)
-    {
-        $link = $image->getURL();
-
-        if (isset($link))
-        {
-            $fullpath = BASE_PATH . '/' . PUBLIC_DIR . $link;
-            $ex = explode('/', $fullpath);
-            $ex2 = explode('.', last($ex));
-            $ex3 = explode($ex2[0], $fullpath);
-            $ex4 = explode($ex2[0], $link);
-
-            $webp = $ex3[0] . $ex2[0] . '.' . 'webp';
-
-            if (file_exists($webp))
-            {
-                return $ex4[0] . $ex2[0] . '.' . 'webp';
-            }
-        }
-
-        return null;
-    }
-
-    private function imaginariumURL($link)
-    {
-        $imageSupport = Imaginator::imageSupport();
-
-        if ($imageSupport && count($imageSupport))
-        {
-            if (isset($link))
-            {
-                $fullpath = BASE_PATH . '/' . PUBLIC_DIR . $link;
-                $ex = explode('/', $fullpath);
-                $ex2 = explode('.', last($ex));
-                $ex3 = explode($ex2[0], $fullpath);
-                $ex4 = explode($ex2[0], $link);
-
-                if (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'image/avif') >= 0)
-                {
-                    if (!$this->owner->escapeFormattingAvif && in_array('avif', $imageSupport))
-                    {
-                        $avif = $ex3[0] . $ex2[0] . '.' . 'avif';
-                        if (file_exists($avif))
-                        {
-                            $newSrc = $ex4[0] . $ex2[0] . '.' . 'avif';
-                        }
-                    }
-                }
-
-                if (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'image/webp') >= 0)
-                {
-                    if (!$this->owner->escapeFormattingWebp && !isset($newSrc) && in_array('webp', $imageSupport))
-                    {
-                        $webp = $ex3[0] . $ex2[0] . '.' . 'webp';
-                        if (file_exists($webp))
-                        {
-                            $newSrc = $ex4[0] . $ex2[0] . '.' . 'webp';
-                        }
-                    }
-                }
-
-                if (isset($newSrc))
-                {
-                    return $newSrc;
-                }
-            }
-        }
-
-        return $link;
     }
 }
