@@ -1,9 +1,8 @@
 ---
 Name: goldfinch-imaginarium
 After:
-  - 'assetsimage'
+  - "assetsimage"
 ---
-
 SilverStripe\Assets\Image:
   extensions:
     - Goldfinch\Imaginarium\Extensions\ImageExtension

@@ -12,11 +12,17 @@ class ImageExtension extends Extension
 
     public function LazyFocusFill(int $width, int $height, $lazyloadTag = true)
     {
-        return $this->Lazy($this->owner->FocusFill($width, $height), $lazyloadTag);
+        return $this->Lazy(
+            $this->owner->FocusFill($width, $height),
+            $lazyloadTag,
+        );
     }
 
-    public function LazyFocusFillMax(int $width, int $height, $lazyloadTag = true)
-    {
+    public function LazyFocusFillMax(
+        int $width,
+        int $height,
+        $lazyloadTag = true,
+    ) {
         return $this->Lazy($this->owner->FocusFillMax($width, $height));
     }
 
@@ -38,7 +44,7 @@ class ImageExtension extends Extension
     protected function Lazy($file, $lazyloadTag = true)
     {
         if (!$file) {
-          return $file;
+            return $file;
         }
 
         // Default Lazy Thumbnail width (height is calculated automaticly proportionally based on width)
@@ -55,24 +61,25 @@ class ImageExtension extends Extension
 
         $url = $file->getAttribute('src');
 
-        $thumbnail = $file->owner->FocusFill((int) $thumbnailWidth, (int) $thumbnailHeight);
+        $thumbnail = $file->owner->FocusFill(
+            (int) $thumbnailWidth,
+            (int) $thumbnailHeight,
+        );
 
         if (!$thumbnail) {
-
-          $thumbnail = $file->owner->Fill((int) $thumbnailWidth, (int) $thumbnailHeight);
-
+            $thumbnail = $file->owner->Fill(
+                (int) $thumbnailWidth,
+                (int) $thumbnailHeight,
+            );
         }
 
-        if($thumbnail) {
-
-          $file = $file->setAttribute('src', $thumbnail->getURL());
-          $file = $file->setAttribute('data-loaded', 'false');
-          $file = $file->setAttribute('data-src', $url);
-
+        if ($thumbnail) {
+            $file = $file->setAttribute('src', $thumbnail->getURL());
+            $file = $file->setAttribute('data-loaded', 'false');
+            $file = $file->setAttribute('data-src', $url);
         }
 
-        if (!$lazyloadTag)
-        {
+        if (!$lazyloadTag) {
             $file = $file->setAttribute('loading', false);
         }
 
@@ -81,8 +88,7 @@ class ImageExtension extends Extension
 
     private function setRIoptions($options)
     {
-        if ($options)
-        {
+        if ($options) {
             $this->RIOptions = json_decode($options, true);
         }
     }
@@ -96,8 +102,7 @@ class ImageExtension extends Extension
     {
         $options = $this->getRIoptions();
 
-        if ($options && isset($options[$prop]))
-        {
+        if ($options && isset($options[$prop])) {
             return true;
         }
 
@@ -108,8 +113,7 @@ class ImageExtension extends Extension
     {
         $options = $this->getRIoptions();
 
-        if ($options && isset($options[$prop]))
-        {
+        if ($options && isset($options[$prop])) {
             return $options[$prop];
         }
 
@@ -126,13 +130,12 @@ class ImageExtension extends Extension
         $sizes = explode(',', $sizes);
         $formatedSizes = [];
 
-        array_map(function($w) use (&$formatedSizes) {
-          $ex = explode('>', $w);
+        array_map(function ($w) use (&$formatedSizes) {
+            $ex = explode('>', $w);
 
-          $bp = (int) trim($ex[0]);
-          $wd = (int) trim($ex[1]);
-          $formatedSizes[$bp] = $wd;
-
+            $bp = (int) trim($ex[0]);
+            $wd = (int) trim($ex[1]);
+            $formatedSizes[$bp] = $wd;
         }, $sizes);
 
         krsort($formatedSizes);
@@ -144,12 +147,9 @@ class ImageExtension extends Extension
         // ! here to make sure that the initially passed $options is not carring options, to force using object property instead
         $options = null;
 
-        if ($this->hasRIOption('manipulation'))
-        {
+        if ($this->hasRIOption('manipulation')) {
             $manipulation = $this->getRIOption('manipulation');
-        }
-        else
-        {
+        } else {
             $manipulation = 'FocusFill';
         }
 
@@ -159,46 +159,36 @@ class ImageExtension extends Extension
 
         $firstImage = null;
 
-        foreach($formatedSizes as $bp => $width)
-        {
+        foreach ($formatedSizes as $bp => $width) {
             $height = (int) round($width / $intrinsicRatio);
 
-            if (in_array($manipulation, $singleWidth))
-            {
-                if ($bp === 0)
-                {
+            if (in_array($manipulation, $singleWidth)) {
+                if ($bp === 0) {
                     $sizedImage = $this->owner->$manipulation($width);
+                } else {
+                    $sizedImage = $this->owner
+                        ->EscapeF()
+                        ->$manipulation($width);
                 }
-                else
-                {
-                    $sizedImage = $this->owner->EscapeF()->$manipulation($width);
-                }
-            }
-            else if (in_array($manipulation, $singleHeight))
-            {
-                if ($bp === 0)
-                {
+            } elseif (in_array($manipulation, $singleHeight)) {
+                if ($bp === 0) {
                     $sizedImage = $this->owner->$manipulation($height);
+                } else {
+                    $sizedImage = $this->owner
+                        ->EscapeF()
+                        ->$manipulation($height);
                 }
-                else
-                {
-                    $sizedImage = $this->owner->EscapeF()->$manipulation($height);
-                }
-            }
-            else
-            {
-                if ($bp === 0)
-                {
+            } else {
+                if ($bp === 0) {
                     $sizedImage = $this->owner->$manipulation($width, $height);
-                }
-                else
-                {
-                    $sizedImage = $this->owner->EscapeF()->$manipulation($width, $height);
+                } else {
+                    $sizedImage = $this->owner
+                        ->EscapeF()
+                        ->$manipulation($width, $height);
                 }
             }
 
-            if ($bp === 0)
-            {
+            if ($bp === 0) {
                 $firstImage = $sizedImage;
                 continue;
             }
@@ -208,12 +198,14 @@ class ImageExtension extends Extension
             $sizedImageAvif = $this->Avif($sizedImage);
             $sizedImageWebp = $this->Webp($sizedImage);
 
-            $sizes->push(ArrayData::create([
-              'Image' => $sizedImage,
-              'ImageAvif' => $sizedImageAvif,
-              'ImageWebp' => $sizedImageWebp,
-              'MediaQuery' => $mediaQuery,
-            ]));
+            $sizes->push(
+                ArrayData::create([
+                    'Image' => $sizedImage,
+                    'ImageAvif' => $sizedImageAvif,
+                    'ImageWebp' => $sizedImageWebp,
+                    'MediaQuery' => $mediaQuery,
+                ]),
+            );
         }
 
         // Placeholder image
@@ -221,25 +213,32 @@ class ImageExtension extends Extension
         $placeholderWidth = 80;
         $placeholderHeight = round($placeholderWidth / $intrinsicRatio);
 
-        if (in_array($manipulation, $singleWidth))
-        {
-            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderWidth);
-        }
-        else if (in_array($manipulation, $singleHeight))
-        {
-            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderHeight);
-        }
-        else
-        {
-            $placeholderImage = $this->owner->EscapeF()->$manipulation($placeholderWidth, $placeholderHeight);
+        if (in_array($manipulation, $singleWidth)) {
+            $placeholderImage = $this->owner
+                ->EscapeF()
+                ->$manipulation($placeholderWidth);
+        } elseif (in_array($manipulation, $singleHeight)) {
+            $placeholderImage = $this->owner
+                ->EscapeF()
+                ->$manipulation($placeholderHeight);
+        } else {
+            $placeholderImage = $this->owner
+                ->EscapeF()
+                ->$manipulation($placeholderWidth, $placeholderHeight);
         }
 
-        return $this->owner->customise([
-          'Sizes' => $sizes,
-          'FirstImage' => $firstImage,
-          'PlaceholderImage' => $placeholderImage,
-          'Lazy' => $this->hasRIOption('lazy') ? $this->getRIOption('lazy') : true,
-          'LazyLoadingTag' => $this->hasRIOption('loadingtag') ? $this->getRIOption('loadingtag') : true,
-        ])->renderWith(['Layout' => 'Goldfinch/Imaginarium/Responsive']);
+        return $this->owner
+            ->customise([
+                'Sizes' => $sizes,
+                'FirstImage' => $firstImage,
+                'PlaceholderImage' => $placeholderImage,
+                'Lazy' => $this->hasRIOption('lazy')
+                    ? $this->getRIOption('lazy')
+                    : true,
+                'LazyLoadingTag' => $this->hasRIOption('loadingtag')
+                    ? $this->getRIOption('loadingtag')
+                    : true,
+            ])
+            ->renderWith(['Layout' => 'Goldfinch/Imaginarium/Responsive']);
     }
 }
