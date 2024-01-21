@@ -167,7 +167,7 @@ class ImageExtension extends Extension
                     $sizedImage = $this->owner->$manipulation($width);
                 } else {
                     $sizedImage = $this->owner
-                        ->EscapeF()
+                        // ->EscapeF()
                         ->$manipulation($width);
                 }
             } elseif (in_array($manipulation, $singleHeight)) {
@@ -175,7 +175,7 @@ class ImageExtension extends Extension
                     $sizedImage = $this->owner->$manipulation($height);
                 } else {
                     $sizedImage = $this->owner
-                        ->EscapeF()
+                        // ->EscapeF()
                         ->$manipulation($height);
                 }
             } else {
@@ -183,7 +183,7 @@ class ImageExtension extends Extension
                     $sizedImage = $this->owner->$manipulation($width, $height);
                 } else {
                     $sizedImage = $this->owner
-                        ->EscapeF()
+                        // ->EscapeF()
                         ->$manipulation($width, $height);
                 }
             }
@@ -195,14 +195,14 @@ class ImageExtension extends Extension
 
             $mediaQuery = '(min-width: ' . $bp . 'px)'; // and (min-device-pixel-ratio: 2.0)';
 
-            $sizedImageAvif = $this->Avif($sizedImage);
-            $sizedImageWebp = $this->Webp($sizedImage);
+            // $sizedImageAvif = $this->Avif($sizedImage);
+            // $sizedImageWebp = $this->Webp($sizedImage);
 
             $sizes->push(
                 ArrayData::create([
                     'Image' => $sizedImage,
-                    'ImageAvif' => $sizedImageAvif,
-                    'ImageWebp' => $sizedImageWebp,
+                    // 'ImageAvif' => $sizedImageAvif,
+                    // 'ImageWebp' => $sizedImageWebp,
                     'MediaQuery' => $mediaQuery,
                 ]),
             );
@@ -215,15 +215,15 @@ class ImageExtension extends Extension
 
         if (in_array($manipulation, $singleWidth)) {
             $placeholderImage = $this->owner
-                ->EscapeF()
+                // ->EscapeF()
                 ->$manipulation($placeholderWidth);
         } elseif (in_array($manipulation, $singleHeight)) {
             $placeholderImage = $this->owner
-                ->EscapeF()
+                // ->EscapeF()
                 ->$manipulation($placeholderHeight);
         } else {
             $placeholderImage = $this->owner
-                ->EscapeF()
+                // ->EscapeF()
                 ->$manipulation($placeholderWidth, $placeholderHeight);
         }
 
