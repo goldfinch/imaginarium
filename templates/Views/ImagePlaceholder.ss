@@ -1,1 +1,1 @@
-<img src="{$URL}" alt="Placeholder: {$Dimensions}">
+<img src="{$URL}" alt="{$Title}">

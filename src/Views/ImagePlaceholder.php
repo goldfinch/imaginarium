@@ -29,9 +29,30 @@ class ImagePlaceholder extends ViewableData
         }
     }
 
-    public function Dimensions()
+    public function Dimensions($side = null)
     {
+        if ($side) {
+            $ex = explode('x', $this->generator->targetSize);
+
+            return $side == 'Width' ? $ex[0] : $ex[1];
+        }
+
         return $this->generator->targetSize;
+    }
+
+    public function Title()
+    {
+        return 'Placeholder: ' . $this->Dimensions();
+    }
+
+    public function Width()
+    {
+        return $this->Dimensions(__FUNCTION__);
+    }
+
+    public function Height()
+    {
+        return $this->Dimensions(__FUNCTION__);
     }
 
     public function Link()
@@ -41,7 +62,7 @@ class ImagePlaceholder extends ViewableData
 
     public function URL()
     {
-        return $this->generator->generate($this->generator->targetSize);
+        return $this->generator->generate($this->Dimensions());
     }
 
     public function forTemplate()
