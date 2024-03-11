@@ -2,9 +2,12 @@
 
 namespace Goldfinch\Imaginarium\Extensions;
 
+use SilverStripe\Assets\Image;
 use SilverStripe\ORM\ArrayList;
 use SilverStripe\Core\Extension;
 use SilverStripe\View\ArrayData;
+use SilverStripe\ORM\FieldType\DBHTMLText;
+use NicoVerbruggen\ImageGenerator\ImageGenerator;
 
 class ImageExtension extends Extension
 {
@@ -16,6 +19,39 @@ class ImageExtension extends Extension
             $this->owner->FocusFill($width, $height),
             $lazyloadTag,
         );
+    }
+
+    public function PL($fn, ...$args)
+    {
+        $return = $this->owner->$fn(...$args);
+
+        if (!$return) {
+            $width = isset($args[0]) ? $args[0] : null;
+            $height = isset($args[1]) ? $args[1] : null;
+
+            if ($width && $height) {
+
+                $path = BASE_PATH . "/vendor/goldfinch/image-generator/fonts/OpenSans.ttf";
+                $size = $width . "x" . $height;
+
+                $generator = new ImageGenerator(
+                    targetSize: $size,
+                    textColorHex: "#999",
+                    backgroundColorHex: "#EEE",
+                    fontPath: $path,
+                    fontSize: 30
+                );
+
+                $return = '<img src="' . $generator->generate($size) . '">';
+
+                $html = DBHTMLText::create();
+                $html->setValue($return);
+
+                return $html;
+            }
+        }
+
+        return $return;
     }
 
     public function LazyFocusFillMax(
