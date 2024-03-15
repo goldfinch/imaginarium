@@ -11,11 +11,12 @@ class ImageExtension extends Extension
 {
     private $RIOptions = null;
 
-    public function LazyFocusFill(int $width, int $height, $lazyloadTag = true)
+    public function LazyFocusFill(int $width, int $height, $lazyloadTag = true, $object = false)
     {
         return $this->Lazy(
             $this->owner->FocusFill($width, $height),
             $lazyloadTag,
+            $object
         );
     }
 
@@ -34,26 +35,43 @@ class ImageExtension extends Extension
         int $width,
         int $height,
         $lazyloadTag = true,
+        $object = false
     ) {
-        return $this->Lazy($this->owner->FocusFillMax($width, $height));
+        return $this->Lazy(
+            $this->owner->FocusFillMax($width, $height),
+            $lazyloadTag,
+            $object
+        );
     }
 
-    public function LazyFitMax(int $width, int $height, $lazyloadTag = true)
+    public function LazyFitMax(int $width, int $height, $lazyloadTag = true, $object = false)
     {
-        return $this->Lazy($this->owner->FitMax($width, $height));
+        return $this->Lazy(
+            $this->owner->FitMax($width, $height),
+            $lazyloadTag,
+            $object
+        );
     }
 
-    public function LazyFocusCropWidth(int $width, $lazyloadTag = true)
+    public function LazyFocusCropWidth(int $width, $lazyloadTag = true, $object = false)
     {
-        return $this->Lazy($this->owner->FocusCropWidth($width));
+        return $this->Lazy(
+            $this->owner->FocusCropWidth($width),
+            $lazyloadTag,
+            $object
+        );
     }
 
-    public function LazyFocusCropHeight(int $height, $lazyloadTag = true)
+    public function LazyFocusCropHeight(int $height, $lazyloadTag = true, $object = false)
     {
-        return $this->Lazy($this->owner->FocusCropHeight($height));
+        return $this->Lazy(
+            $this->owner->FocusCropHeight($height),
+            $lazyloadTag,
+            $object
+        );
     }
 
-    protected function Lazy($file, $lazyloadTag = true)
+    protected function Lazy($file, $lazyloadTag = true, $object = false)
     {
         if (!$file) {
             return $file;
@@ -93,6 +111,10 @@ class ImageExtension extends Extension
 
         if (!$lazyloadTag) {
             $file = $file->setAttribute('loading', false);
+        }
+
+        if ($object) {
+            $file = $file->setAttribute('style', 'object-position: '.$file->FocusPoint->PercentageX().'% '.$file->FocusPoint->PercentageY().'%');
         }
 
         return $file;
