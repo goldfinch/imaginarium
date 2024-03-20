@@ -9,10 +9,21 @@ class ImagePlaceholder extends ViewableData
 {
     private $generator;
 
-    public function __construct($args)
+    public function __construct(...$args)
     {
         $width = isset($args[0]) ? $args[0] : null;
-        $height = isset($args[1]) ? $args[1] : null;
+        $height = isset($args[1]) ? $args[1] : $width;
+        $bgcolour = isset($args[2]) ? $args[2] : '999';
+        $textcolour = isset($args[3]) ? $args[3] : 'EEE';
+        $textSize = isset($args[4]) ? $args[4] : 30;
+
+        if (substr($bgcolour, 0, 1) != '#') {
+            $bgcolour = '#' . $bgcolour;
+        }
+
+        if (substr($textcolour, 0, 1) != '#') {
+            $textcolour = '#' . $textcolour;
+        }
 
         if ($width && $height) {
 
@@ -21,10 +32,10 @@ class ImagePlaceholder extends ViewableData
 
             $this->generator = new ImageGenerator(
                 targetSize: $size,
-                textColorHex: '#999',
-                backgroundColorHex: '#EEE',
+                textColorHex: $textcolour,
+                backgroundColorHex: $bgcolour,
                 fontPath: $path,
-                fontSize: 30
+                fontSize: $textSize
             );
         }
     }
