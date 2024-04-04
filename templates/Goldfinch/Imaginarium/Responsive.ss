@@ -45,6 +45,7 @@
     decoding="async"
     <% if LazyLoadingTag %>
     loading="lazy"
+    data-loaded="false"
     <% end_if %>
     <% if Lazy %>
     class="lazy"
