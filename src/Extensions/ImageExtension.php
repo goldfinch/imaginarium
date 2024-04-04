@@ -5,6 +5,7 @@ namespace Goldfinch\Imaginarium\Extensions;
 use SilverStripe\ORM\ArrayList;
 use SilverStripe\Core\Extension;
 use SilverStripe\View\ArrayData;
+use DorsetDigital\CDNRewrite\CDNMiddleware;
 use Goldfinch\Imaginarium\Views\ImagePlaceholder;
 
 class ImageExtension extends Extension
@@ -264,6 +265,7 @@ class ImageExtension extends Extension
         return $this->owner
             ->customise([
                 'Sizes' => $sizes,
+                'CDNSuffix' => class_exists(CDNMiddleware::class) ? CDNMiddleware::config()->get('cdn_domain') : '',
                 'FirstImage' => $firstImage,
                 'PlaceholderImage' => $placeholderImage,
                 'Lazy' => $this->hasRIOption('lazy')

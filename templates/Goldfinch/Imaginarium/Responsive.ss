@@ -29,9 +29,9 @@
     <source
       media="{$MediaQuery}"
       <% if Lazy %>
-      data-srcset="{$Image.URL}"
+      data-srcset="{$Up.CDNSuffix}{$Image.URL}"
       <% else %>
-      srcset="{$Image.URL}"
+      srcset="{$Up.CDNSuffix}{$Image.URL}"
       <% end_if %>
       width="{$Image.Width}"
       height="{$Image.Height}"
@@ -44,8 +44,8 @@
     height="{$FirstImage.Height}"
     decoding="async"
     <% if LazyLoadingTag %>
-    loading="lazy"
-    data-loaded="false"
+      loading="lazy"
+      data-loaded="false"
     <% end_if %>
     <% if Lazy %>
     class="lazy"
