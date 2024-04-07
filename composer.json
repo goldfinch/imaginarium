@@ -14,7 +14,8 @@
         "php": ">=8.0",
         "silverstripe/framework": "^5.0",
         "silverstripe/admin": "^2.0",
-        "goldfinch/image-generator": "^3.0"
+        "goldfinch/image-generator": "^3.0",
+        "foroco/php-browser-detection": "^2.7"
     },
     "autoload": {
         "psr-4": {
