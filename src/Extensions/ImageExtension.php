@@ -262,6 +262,21 @@ class ImageExtension extends Extension
                 ->$manipulation($placeholderWidth, $placeholderHeight);
         }
 
+        /**
+         *
+         * -- decoding=(sync/async/auto)
+         * There are 3 accepted values for the decoding attribute:
+         *
+         *  sync: the rendering will continue only after the image is ready; preferred for a "complete experience"
+         *  async: continue the rendering and as soon as image decoding is complete, the browser will update the presentation; preferred for performance
+         *  auto: will let the browser do what it determines is best approach (not sure who it decides that)
+         *
+         *
+         * -- fetchpriority=(high/low)
+         * https://web.dev/articles/fetch-priority
+         *
+         */
+
         return $this->owner
             ->customise([
                 'Sizes' => $sizes,
@@ -274,6 +289,12 @@ class ImageExtension extends Extension
                 'LazyLoadingTag' => $this->hasRIOption('loadingtag')
                     ? $this->getRIOption('loadingtag')
                     : true,
+                'FetchPriorityTag' => $this->hasRIOption('fetchpriority')
+                    ? $this->getRIOption('fetchpriority')
+                    : true,
+                'DecodingTag' => $this->hasRIOption('decoding')
+                    ? $this->getRIOption('decoding')
+                    : 'async',
             ])
             ->renderWith(['Layout' => 'Goldfinch/Imaginarium/Responsive']);
     }

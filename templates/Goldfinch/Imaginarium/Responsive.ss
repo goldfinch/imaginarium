@@ -42,11 +42,16 @@
     alt="{$FirstImage.Title}"
     width="{$FirstImage.Width}"
     height="{$FirstImage.Height}"
-    decoding="async"
+    <% if DecodingTag %>
+    decoding="$DecodingTag"
+    <% end_if %>
     <% if LazyLoadingTag %>
       loading="lazy"
-      data-loaded="false"
     <% end_if %>
+    <% if FetchPriorityTag %>
+      fetchpriority="$FetchPriorityTag"
+    <% end_if %>
+    data-loaded="false"
     <% if Lazy %>
     class="lazy"
     data-src="{$FirstImage.Link}"
