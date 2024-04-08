@@ -54,10 +54,10 @@
     data-loaded="false"
     <% if Lazy %>
     class="lazy"
-    data-src="{$FirstImage.Link}"
+    data-src="{$FirstImageLink}"
     src="{$PlaceholderImageURL}"
     <% else %>
-    src="{$FirstImage.Link}"
+    src="{$FirstImageLink}"
     <% end_if %>
     <% if FocusPoint %>
     style="transform-origin: {$FocusPoint.PercentageX}% {$FocusPoint.PercentageY}%"
