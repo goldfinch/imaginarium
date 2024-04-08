@@ -291,6 +291,7 @@ class ImageExtension extends Extension
                 'FirstImage' => $firstImage,
                 'FirstImageLink' => $cdnSuffix . $firstImage->getURL(),
                 'PlaceholderImage' => $placeholderImage,
+                'PlaceholderImageURL' => $cdnSuffix . $placeholderImage->getURL(),
                 'Lazy' => $this->hasRIOption('lazy')
                     ? $this->getRIOption('lazy')
                     : true,
