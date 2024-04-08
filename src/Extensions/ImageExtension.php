@@ -169,7 +169,17 @@ class ImageExtension extends Extension
             $ex = explode('>', $w);
 
             $bp = (int) trim($ex[0]);
-            $wd = (int) trim($ex[1]);
+
+            if (strpos(trim($ex[1]), ':') === false) {
+
+                $wd = (int) trim($ex[1]);
+
+            } else {
+
+                $wd = array_map(fn($v): int => $v, explode(':', trim($ex[1])));
+
+            }
+
             $formatedSizes[$bp] = $wd;
         }, $sizes);
 
@@ -195,7 +205,13 @@ class ImageExtension extends Extension
         $firstImage = null;
 
         foreach ($formatedSizes as $bp => $width) {
-            $height = (int) round($width / $intrinsicRatio);
+
+            if (is_array($width)) {
+                $height = $width[1];
+                $width = $width[0];
+            } else {
+                $height = (int) round($width / $intrinsicRatio);
+            }
 
             if (in_array($manipulation, $singleWidth)) {
                 if ($bp === 0) {
