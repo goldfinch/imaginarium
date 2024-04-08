@@ -277,10 +277,17 @@ class ImageExtension extends Extension
          *
          */
 
+        $cdnState = $this->hasRIOption('cdn') ?? true;
+        $cdnSuffix = '';
+
+        if ($cdnState && $cdnState != 'false') {
+            $cdnSuffix = class_exists(CDNMiddleware::class) ? CDNMiddleware::config()->get('cdn_domain') : '';
+        }
+
         return $this->owner
             ->customise([
                 'Sizes' => $sizes,
-                'CDNSuffix' => class_exists(CDNMiddleware::class) ? CDNMiddleware::config()->get('cdn_domain') : '',
+                'CDNSuffix' => $cdnSuffix,
                 'FirstImage' => $firstImage,
                 'PlaceholderImage' => $placeholderImage,
                 'Lazy' => $this->hasRIOption('lazy')
@@ -291,7 +298,7 @@ class ImageExtension extends Extension
                     : true,
                 'FetchPriorityTag' => $this->hasRIOption('fetchpriority')
                     ? $this->getRIOption('fetchpriority')
-                    : true,
+                    : false,
                 'DecodingTag' => $this->hasRIOption('decoding')
                     ? $this->getRIOption('decoding')
                     : 'async',
