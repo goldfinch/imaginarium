@@ -12,12 +12,13 @@ class ImageExtension extends Extension
 {
     private $RIOptions = null;
 
-    public function LazyFocusFill(int $width, int $height, $lazyloadTag = true, $object = false)
+    public function LazyFocusFill(int $width, int $height, $lazyloadTag = true, $object = false, $customAttrs = '')
     {
         return $this->Lazy(
             $this->owner->FocusFill($width, $height),
             $lazyloadTag,
-            $object
+            $object,
+            $customAttrs,
         );
     }
 
@@ -36,43 +37,48 @@ class ImageExtension extends Extension
         int $width,
         int $height,
         $lazyloadTag = true,
-        $object = false
+        $object = false,
+        $customAttrs = ''
     ) {
         return $this->Lazy(
             $this->owner->FocusFillMax($width, $height),
             $lazyloadTag,
-            $object
+            $object,
+            $customAttrs
         );
     }
 
-    public function LazyFitMax(int $width, int $height, $lazyloadTag = true, $object = false)
+    public function LazyFitMax(int $width, int $height, $lazyloadTag = true, $object = false, $customAttrs = '')
     {
         return $this->Lazy(
             $this->owner->FitMax($width, $height),
             $lazyloadTag,
-            $object
+            $object,
+            $customAttrs
         );
     }
 
-    public function LazyFocusCropWidth(int $width, $lazyloadTag = true, $object = false)
+    public function LazyFocusCropWidth(int $width, $lazyloadTag = true, $object = false, $customAttrs = '')
     {
         return $this->Lazy(
             $this->owner->FocusCropWidth($width),
             $lazyloadTag,
-            $object
+            $object,
+            $customAttrs
         );
     }
 
-    public function LazyFocusCropHeight(int $height, $lazyloadTag = true, $object = false)
+    public function LazyFocusCropHeight(int $height, $lazyloadTag = true, $object = false, $customAttrs = '')
     {
         return $this->Lazy(
             $this->owner->FocusCropHeight($height),
             $lazyloadTag,
-            $object
+            $object,
+            $customAttrs
         );
     }
 
-    protected function Lazy($file, $lazyloadTag = true, $object = false)
+    protected function Lazy($file, $lazyloadTag = true, $object = false, $customAttrs = '')
     {
         if (!$file) {
             return $file;
@@ -116,6 +122,14 @@ class ImageExtension extends Extension
 
         if ($object) {
             $file = $file->setAttribute('style', 'object-position: '.$file->FocusPoint->PercentageX().'% '.$file->FocusPoint->PercentageY().'%');
+        }
+
+        if ($customAttrs != '') {
+            $attrs = json_decode($customAttrs, true);
+
+            foreach ($attrs as $attrName => $attrValue) {
+                $file = $file->setAttribute($attrName, $attrValue);
+            }
         }
 
         return $file;

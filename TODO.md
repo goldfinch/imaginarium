@@ -4,6 +4,8 @@ APP_URL_CDN=
 ```
 
 ```
+$Image.LazyFocusFill(485, 485, true, true, '{"class": "border-radius-100 w-350px"}')
+
 $Image.EscapeF.FocusFill
 $Image.EscapeFAvif.FocusFill
 $Image.EscapeFWebp.FocusFill
