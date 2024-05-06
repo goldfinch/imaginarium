@@ -60,7 +60,7 @@
     src="{$FirstImageLink}"
     <% end_if %>
     <% if FocusPoint %>
-    style="transform-origin: {$FocusPoint.PercentageX}% {$FocusPoint.PercentageY}%"
+    style="object-position: {$FocusPoint.PercentageX}% {$FocusPoint.PercentageY}%"
     <% end_if %>
   >
 </picture>
