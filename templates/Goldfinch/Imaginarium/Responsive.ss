@@ -1,4 +1,4 @@
-<picture>
+<picture<% if Params.pictureClass %> class="$Params.pictureClass"<% end_if %>>
 	<% loop $Sizes %>
     <% if ImageAvif %>
       <source
@@ -53,11 +53,12 @@
     <% end_if %>
     data-loaded="false"
     <% if Lazy %>
-    class="lazy"
+    class="lazy<% if Params.imgClass %> $Params.imgClass<% end_if %>"
     data-src="{$FirstImageLink}"
     src="{$PlaceholderImageURL}"
     <% else %>
     src="{$FirstImageLink}"
+    class="<% if Params.imgClass %> class="$Params.imgClass"<% end_if %>"
     <% end_if %>
     <% if FocusPoint %>
     style="object-position: {$FocusPoint.PercentageX}% {$FocusPoint.PercentageY}%"

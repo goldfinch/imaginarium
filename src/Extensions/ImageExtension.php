@@ -2,11 +2,11 @@
 
 namespace Goldfinch\Imaginarium\Extensions;
 
-use SilverStripe\ORM\ArrayList;
-use SilverStripe\Core\Extension;
-use SilverStripe\View\ArrayData;
 use DorsetDigital\CDNRewrite\CDNMiddleware;
 use Goldfinch\Imaginarium\Views\ImagePlaceholder;
+use SilverStripe\Core\Extension;
+use SilverStripe\ORM\ArrayList;
+use SilverStripe\View\ArrayData;
 
 class ImageExtension extends Extension
 {
@@ -26,7 +26,7 @@ class ImageExtension extends Extension
     {
         $return = $this->owner->$fn(...$args);
 
-        if (!$return) {
+        if (! $return) {
             return ImagePlaceholder::create($args);
         }
 
@@ -80,7 +80,7 @@ class ImageExtension extends Extension
 
     protected function Lazy($file, $lazyloadTag = true, $object = false, $customAttrs = '')
     {
-        if (!$file) {
+        if (! $file) {
             return $file;
         }
 
@@ -103,7 +103,7 @@ class ImageExtension extends Extension
             (int) $thumbnailHeight,
         );
 
-        if (!$thumbnail) {
+        if (! $thumbnail) {
             $thumbnail = $file->owner->Fill(
                 (int) $thumbnailWidth,
                 (int) $thumbnailHeight,
@@ -116,7 +116,7 @@ class ImageExtension extends Extension
             $file = $file->setAttribute('data-src', $url);
         }
 
-        if (!$lazyloadTag) {
+        if (! $lazyloadTag) {
             $file = $file->setAttribute('loading', false);
         }
 
@@ -169,7 +169,7 @@ class ImageExtension extends Extension
         return null;
     }
 
-    public function Responsive($ratio, $sizes, $options = null)
+    public function Responsive($ratio, $sizes, $options = null, $params = '{}')
     {
         $expl = explode(':', $ratio);
 
@@ -190,7 +190,7 @@ class ImageExtension extends Extension
 
             } else {
 
-                $wd = array_map(fn($v): int => $v, explode(':', trim($ex[1])));
+                $wd = array_map(fn ($v): int => $v, explode(':', trim($ex[1])));
 
             }
 
@@ -255,10 +255,11 @@ class ImageExtension extends Extension
 
             if ($bp === 0) {
                 $firstImage = $sizedImage;
+
                 continue;
             }
 
-            $mediaQuery = '(min-width: ' . $bp . 'px)'; // and (min-device-pixel-ratio: 2.0)';
+            $mediaQuery = '(min-width: '.$bp.'px)'; // and (min-device-pixel-ratio: 2.0)';
 
             // $sizedImageAvif = $this->Avif($sizedImage);
             // $sizedImageWebp = $this->Webp($sizedImage);
@@ -293,7 +294,6 @@ class ImageExtension extends Extension
         }
 
         /**
-         *
          * -- decoding=(sync/async/auto)
          * There are 3 accepted values for the decoding attribute:
          *
@@ -304,9 +304,7 @@ class ImageExtension extends Extension
          *
          * -- fetchpriority=(high/low)
          * https://web.dev/articles/fetch-priority
-         *
          */
-
         $cdnState = $this->hasRIOption('cdn') ?? true;
         $cdnSuffix = '';
 
@@ -316,12 +314,13 @@ class ImageExtension extends Extension
 
         return $this->owner
             ->customise([
+                'Params' => ArrayData::create(json_decode($params, true)),
                 'Sizes' => $sizes,
                 'CDNSuffix' => $cdnSuffix,
                 'FirstImage' => $firstImage,
-                'FirstImageLink' => $cdnSuffix . $firstImage->getURL(),
+                'FirstImageLink' => $cdnSuffix.$firstImage->getURL(),
                 'PlaceholderImage' => $placeholderImage,
-                'PlaceholderImageURL' => $cdnSuffix . $placeholderImage->getURL(),
+                'PlaceholderImageURL' => $cdnSuffix.$placeholderImage->getURL(),
                 'Lazy' => $this->hasRIOption('lazy')
                     ? $this->getRIOption('lazy')
                     : true,
