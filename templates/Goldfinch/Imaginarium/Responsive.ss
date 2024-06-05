@@ -58,7 +58,7 @@
     src="{$PlaceholderImageURL}"
     <% else %>
     src="{$FirstImageLink}"
-    class="<% if Params.imgClass %> class="$Params.imgClass"<% end_if %>"
+    <% if Params.imgClass %> class="$Params.imgClass"<% end_if %>
     <% end_if %>
     <% if FocusPoint %>
     style="object-position: {$FocusPoint.PercentageX}% {$FocusPoint.PercentageY}%"
