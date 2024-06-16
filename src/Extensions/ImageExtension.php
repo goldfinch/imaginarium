@@ -318,9 +318,9 @@ class ImageExtension extends Extension
                 'Sizes' => $sizes,
                 'CDNSuffix' => $cdnSuffix,
                 'FirstImage' => $firstImage,
-                'FirstImageLink' => $cdnSuffix.$firstImage->getURL(),
+                'FirstImageLink' => $cdnSuffix.$firstImage ? $firstImage->getURL() : null,
                 'PlaceholderImage' => $placeholderImage,
-                'PlaceholderImageURL' => $cdnSuffix.$placeholderImage->getURL(),
+                'PlaceholderImageURL' => $placeholderImage ? $cdnSuffix.$placeholderImage->getURL() : null,
                 'Lazy' => $this->hasRIOption('lazy')
                     ? $this->getRIOption('lazy')
                     : true,
